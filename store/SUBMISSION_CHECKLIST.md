@@ -157,7 +157,11 @@ python3 tools/package.py        # regenera el ZIP + SHA-256
 
 ## Datos del paquete
 
-- ZIP: `dist/typeclip-1.3.0.zip` (13 archivos, manifest en la raíz)
-- SHA-256: `ca1f5c646bf7b6dc0aeebff2d212b1b60287d68fe24bc27edd27d8a6b045fc51`
+- ZIP: `typeclip-1.3.0.zip`, adjunto al release de GitHub
+  https://github.com/pablopeu/typeclip/releases/tag/v1.3.0 (13 archivos,
+  manifest en la raíz, construido por el workflow de CI sobre el tag).
+- SHA-256 (asset del release): `a1ec198460bb79a9bfb149922b348e50925fe5ff37a2362052c8a44f0eed205f`
 - Tamaño: 43.013 bytes
-- Generado: 2026-11-08 (rama `store-readiness`, sin push ni tag)
+- Nota: un `tools/package.py` local regenera el ZIP con contenido idéntico
+  pero distinto SHA-256 (los ZIP guardan timestamps de empaquetado). El que
+  importa es el archivo concreto que se sube al dashboard.
