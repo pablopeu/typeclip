@@ -1,5 +1,7 @@
 # TypeClip
 
+<p align="center"><img src="TC.png" width="120" alt="TypeClip" title="TypeClip"></p>
+
 **English** · [Español](#español)
 
 ---
@@ -27,7 +29,8 @@ other browsers).
 4. New buttons appear at the top left: click **Load unpacked**.
 5. Select the **`typeclip`** folder (the one inside what you unzipped, which
    contains the icons and the extension files).
-6. Done: the TypeClip icon (a green text cursor) appears in the extensions
+6. Done: the TypeClip icon (the TC monogram: a white T inside an orange C)
+   appears in the extensions
    bar. It's worth **pinning it** (click the puzzle piece 🧩 and then the pin 📌
    on TypeClip's icon) to keep it at hand.
 
@@ -97,8 +100,9 @@ Two things to know:
 
 ### Settings (optional)
 
-Right-click the icon → **Options**. Everything is saved automatically (it syncs
-with your Chrome account):
+Right-click the icon → **Options**. The page opens in English by default: tap
+**Español** (top right) to switch — it remembers your choice. Everything is
+saved automatically (it syncs with your Chrome account):
 
 - **Base speed**: how fast it types (from slow to fast).
 - **Human variation**: makes the pauses between keys uneven (more natural).
@@ -176,7 +180,8 @@ otros navegadores).
    descomprimida**.
 5. Seleccioná la carpeta **`typeclip`** (la que está adentro de lo que
    descomprimiste, que contiene los íconos y los archivos de la extensión).
-6. Listo: el ícono de TypeClip (un cursor de texto verde) aparece en la barra de
+6. Listo: el ícono de TypeClip (el monograma TC: una T blanca dentro de una C
+   naranja) aparece en la barra de
    extensiones. Conviene **fijarlo** (click en la piezita de rompecabezas 🧩 y
    en la chincheta 📌 del ícono de TypeClip) para tenerlo a mano.
 
@@ -243,8 +248,9 @@ Dos cosas a saber:
 
 ### Configuración (opcional)
 
-Click derecho en el ícono → **Opciones**. Todo se guarda solo (se sincroniza con
-tu cuenta de Chrome):
+Click derecho en el ícono → **Opciones**. La página abre en inglés por defecto:
+tocá **Español** (arriba a la derecha) para cambiarla — recuerda tu elección.
+Todo se guarda solo (se sincroniza con tu cuenta de Chrome):
 
 - **Velocidad base**: qué tan rápido tipea (de lento a rápido).
 - **Variación humana**: hace que los tiempos entre teclas no sean siempre

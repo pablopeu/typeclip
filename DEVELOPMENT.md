@@ -11,7 +11,7 @@ ver el [README](README.md).
 | `typeclip/background.js` | Service worker orquestador: validaciones, lectura del portapapeles (offscreen), armado del plan de tipeo, sesión `chrome.debugger` (CDP), cancelación/abort, badge y verificación final. |
 | `typeclip/offscreen.{html,js}` | Documento offscreen (razón `CLIPBOARD`): lee el portapapeles con `execCommand("paste")` — en MV3 el SW no puede tocar el clipboard. |
 | `typeclip/content.js` | Se inyecta on-demand (no declarativo): detecta el elemento editable con foco (`input`/`textarea`/`contenteditable`), monitorea Esc/foco, ejecuta los planes de los fallbacks y lee el campo para verificar. |
-| `typeclip/options.{html,js}` | Configuración en `chrome.storage.sync`. |
+| `typeclip/options.{html,js}` | Configuración en `chrome.storage.sync`. Página bilingüe (ver abajo) con footer de redes estilo byd.peu.net. |
 | `typeclip/test/` | Página de prueba (campos + diagnóstico de eventos). Sirve para prueba manual y la usa el arnés E2E. |
 | `tools/` | Arnés de pruebas e iconos (Python + Playwright). |
 
@@ -59,6 +59,21 @@ opcionales (tecla vecina QWERTY → pausa → Backspace → tecla correcta). **L
 misma lógica está duplicada en `background.js` y `content.js`** (el fallback
 corre dentro de la página): mantener las dos copias sincronizadas.
 
+## Página de opciones: idiomas y footer
+
+El HTML está autorizado en **inglés** (el idioma por defecto, así no hay flash
+de otro idioma al abrir). `options.js` tiene el diccionario `STRINGS` y
+`applyLang()` reemplaza el texto de cada elemento con `data-i18n`; la elección
+del selector se guarda en `chrome.storage.sync` (clave `uiLang`) y se recuerda
+al recargar. No se usa `chrome.i18n`/`_locales` porque seguiría al locale del
+navegador: acá el selector es explícito y recordado. El footer (una línea:
+texto + 5 redes + botón PEU.NET, diseño tomado de byd.peu.net) también se
+traduce y sigue el idioma activo.
+
+Los íconos (barra de extensiones, manifest y el logo de 32px del título) se
+generan con `tools/make_icons.py` a partir de `TC.png` del raíz (square-pad
+sobre su propio fondo + LANCZOS).
+
 ## Invariantes (verificados por el arnés)
 
 - Cero eventos `paste`/`drop`; nunca `DataTransfer`.
@@ -99,7 +114,7 @@ Notas del arnés que costaron descubrir (headless nuevo):
   encolamiento).
 
 Otros scripts de `tools/`: `smoke.py` (carga mínima), `make_icons.py`
-(regenera los PNG desde el SVG embebido), `e_diag.py` / `esc_diag*.py`
+(regenera los PNG desde `TC.png`), `e_diag.py` / `esc_diag*.py`
 (reproducciones forenses de los bugs de cancelación, quedan como referencia).
 
 ## Verificación manual pendiente
