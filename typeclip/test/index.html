@@ -40,6 +40,7 @@
   <button data-payload="largo">2000+ caracteres</button>
   <button data-payload="multiline">Multi-línea (para el input del form)</button>
   <button data-payload="simple">Texto simple</button>
+  <button data-payload="especiales">Con ñ ¿¡ tildes (para caret en el medio)</button>
   <span id="clipStatus"></span>
 </fieldset>
 
@@ -67,6 +68,14 @@
   <p><small>Si el texto tipeado contiene <code>@pablo</code> seguido de Enter, este editor se "come" el Enter
   para elegir la sugerencia (imita el comportamiento del composer real). La verificación final de la extensión
   tiene que marcar DIF en ese caso.</small></p>
+</fieldset>
+
+<fieldset>
+  <legend>5) editor async (Lexical/ProseMirror-like: inserta 60 ms después)</legend>
+  <div id="xce2" contenteditable="true" data-placeholder="cancela el beforeinput y aplica el texto async"></div>
+  <p><small>Este editor intercepta <code>beforeinput</code>, lo cancela y aplica el texto 60 ms después (render
+  diferido, como los editores basados en modelo). La sonda de caracteres especiales de la extensión tiene que
+  esperar ese delay en vez de duplicar el caracter.</small></p>
 </fieldset>
 
 <fieldset>

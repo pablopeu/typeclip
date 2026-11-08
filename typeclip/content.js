@@ -4,8 +4,9 @@
 //   1. init:          reporta si el elemento con foco (este frame) es editable.
 //   2. monitores:     Esc (cancelar) y cambio de document.activeElement → abort.
 //   3. exec-type:     jugador de FALLBACK 1/2: eventos KeyboardEvent sintéticos
-//                     + beforeinput + execCommand("insertText") de UN code point
-//                     (o setter nativo si execCommand falla) + input + keyup.
+//                     + execCommand("insertText") de UN code point (que dispara
+//                     el beforeinput/input nativos; o setter nativo + input
+//                     manual si execCommand falla) + keyup.
 //
 // IMPORTANTE (regla A): nunca más de UN code point por evento de input, nunca
 // eventos "paste", nunca DataTransfer. Los inputTypes que genera este archivo
@@ -155,8 +156,14 @@ if (!window.__typeclip) {
     stopMonitor();
     monitoredRoot = editableRoot();
     const onKey = (e) => {
-      // Solo Esc REAL del usuario (isTrusted=true) cancela el tipeo.
-      if (e.isTrusted && e.key === "Escape") {
+      // Solo Esc REAL del usuario (isTrusted=true) cancela el tipeo. Mientras
+      // hay sesión activa el Esc además se TRAGA (preventDefault +
+      // stopImmediatePropagation en fase captura sobre document): si no, el
+      // mismo Esc le llega al sitio — p.ej. el composer de X abriría el
+      // diálogo de "guardar borrador" justo al cancelar el tipeo.
+      if (e.isTrusted && e.key === "Escape" && monitoredRoot) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         try { chrome.runtime.sendMessage({ tc: "esc" }).catch?.(() => {}); } catch (_) {}
       }
     };
@@ -222,7 +229,11 @@ if (!window.__typeclip) {
           const kInit = { key: step.key ?? step.text, code: step.code ?? "", keyCode: step.vk ?? 0, shift: !!step.shift };
           fireKey(target, "keydown", kInit);
           fireKey(target, "keypress", kInit);
-          fireInputEvent(target, "beforeinput", step.text, "insertText");
+          // Sin beforeinput SINTÉTICO: van solo los eventos nativos que
+          // genere execCommand (input siempre; beforeinput donde el editing
+          // engine lo emite). Disparar el propio encima duplicaba el evento y
+          // en editores que hacen preventDefault(beforeinput) insertaba el
+          // caracter dos veces.
           // execCommand con UN solo code point (regla A). Si devuelve true,
           // el navegador dispara el evento "input" correspondiente.
           let ok = false;
@@ -239,7 +250,6 @@ if (!window.__typeclip) {
           prevCh = step.text;
         } else if (step.t === "enter") {
           fireKey(target, "keydown", { key: "Enter", code: "Enter", keyCode: 13 });
-          fireInputEvent(target, "beforeinput", undefined, "insertLineBreak");
           let ok = false;
           if (target.isContentEditable) {
             try { ok = document.execCommand("insertLineBreak"); } catch (_) {}
@@ -255,7 +265,6 @@ if (!window.__typeclip) {
           prevCh = "\n";
         } else if (step.t === "bs") {
           fireKey(target, "keydown", { key: "Backspace", code: "Backspace", keyCode: 8 });
-          fireInputEvent(target, "beforeinput", undefined, "deleteContentBackward");
           let ok = false;
           try { ok = document.execCommand("delete"); } catch (_) {}
           if (!ok) {

@@ -7,7 +7,7 @@ ver el [README](README.md).
 
 | Archivo | Rol |
 |---|---|
-| `typeclip/manifest.json` | MV3; permisos: `debugger`, `clipboardRead`, `offscreen`, `activeTab`, `scripting`, `storage`. Sin permisos de hosts. Comando `type-clipboard` (Alt+Shift+V). |
+| `typeclip/manifest.json` | MV3; permisos: `debugger`, `clipboardRead`, `offscreen`, `activeTab`, `scripting`, `storage`. Sin permisos de hosts. Comando `type-clipboard` (Alt+Shift+V). `minimum_chrome_version` 116 (offscreen completo; las APIs viejas se usan con guard igual). |
 | `typeclip/background.js` | Service worker orquestador: validaciones, lectura del portapapeles (offscreen), armado del plan de tipeo, sesión `chrome.debugger` (CDP), cancelación/abort, badge y verificación final. |
 | `typeclip/offscreen.{html,js}` | Documento offscreen (razón `CLIPBOARD`): lee el portapapeles con `execCommand("paste")` — en MV3 el SW no puede tocar el clipboard. |
 | `typeclip/content.js` | Se inyecta on-demand (no declarativo): detecta el elemento editable con foco (`input`/`textarea`/`contenteditable`), monitorea Esc/foco, ejecuta los planes de los fallbacks y lee el campo para verificar. |
@@ -35,21 +35,39 @@ ver el [README](README.md).
    (un Tab real movería el foco). Pares surrogate (emoji) → `Input.insertText`
    de un code point.
 6. **Caracteres fuera del layout US** (ñ, á, ¿…): la primera aparición de cada
-   uno se verifica en vivo leyendo la cola del campo; si el keyDown no insertó,
-   ese code point pasa a insertText (fallback puntual, permanente por sesión).
+   uno se verifica en vivo comparando el LARGO del campo antes y después del
+   keyDown (mirar la cola asumía caret al final y duplicaba el caracter con el
+   caret en el medio), esperando hasta ~150 ms para editores que insertan
+   async (Lexical, ProseMirror). Si no creció, ese code point pasa a
+   insertText (fallback puntual, permanente por sesión).
 7. Sesión CDP con `chrome.debugger` + `Input.dispatchKeyEvent`. Si el attach
-   falla → **fallback JS** (content script: eventos sintéticos +
-   `execCommand("insertText")`, un code point por evento); si execCommand
-   tampoco → **fallback setter** (setter nativo de `value`/`textContent` +
-   evento `input` manual con `inputType: "insertText"`, `data` de un code
-   point). El método usado queda en el tooltip del badge (CDP / JS / JS/SET).
+   falla → **fallback JS** (content script: keydown/keypress sintéticos +
+   `execCommand("insertText")`, un code point por evento — sin beforeinput
+   sintético: van solo los nativos de execCommand, y duplicarlo insertaba dos
+   veces en editores que hacen preventDefault); si execCommand tampoco →
+   **fallback setter** (setter nativo de `value`/`textContent` + evento
+   `input` manual con `inputType: "insertText"`, `data` de un code point).
+   El método usado queda en el tooltip del badge (CDP / JS / JS/SET).
 8. Verificación final: lee el campo, normaliza (NFC, saltos uniformes,
    espacios de relleno, trim) y compara → badge `OK` / `DIF` (con detalle de
-   la primera diferencia) / `ERR`.
+   la primera diferencia) / `ERR`. Con línea base: si el campo YA tenía texto
+   (leído antes de tipear), `OK` también acepta "el texto quedó contenido en
+   el campo" (el caret pudo estar en cualquier posición).
 9. Cancelación: Esc (keydown → content script → mensaje `esc` con guard de
-   sender), re-invocación (toggle), cambio de pestaña/ventana (abort con
-   detach). El abort marca `ERR` con el motivo; la cancelación deja badge
-   limpio.
+   sender; mientras hay sesión el Esc se TRAGA con preventDefault +
+   stopImmediatePropagation en document-captura, para que el sitio no lo
+   procese — p.ej. X abriría "guardar borrador"), re-invocación (toggle),
+   cambio de pestaña/ventana (abort con detach). El abort marca `ERR` con el
+   motivo; la cancelación deja badge limpio.
+
+Detalles de robustez del CDP:
+
+- `Input.dispatchKeyEvent` se envía SIN `timestamp`: CDP lo espera en segundos
+  desde epoch y un `Date.now()` en ms dejaba el `event.timeStamp` del sitio
+  ~1.7e15 ms a futuro (medido; test M). Sin el campo, Chrome estampa "ahora".
+- `cancel()` durante el arranque (lectura de clipboard / attach): `runSession`
+  re-chequea `session` después de cada await y suelta el debugger él mismo si
+  había llegado a attachear (quedaba colgado con el infobar).
 
 ## Humanización
 
@@ -88,13 +106,17 @@ sobre su propio fondo + LANCZOS).
 
 ## Suite E2E (`tools/e2e.py`)
 
-25/25 PASS (Chromium 156 headless, Playwright 1.64). Cobertura: A input +
+32/32 PASS (Chromium 156 headless, Playwright 1.64). Cobertura: A input +
 eventos trusted, B textarea 280+ (tildes/ñ/¿¡/emoji/@), C contenteditable,
 D composer fake tipo X (typeahead se come el Enter → DIF esperado), E 2000+
 caracteres de corrido (ciclo de vida del SW), F cancelación por Esc / toggle /
-re-tipeo tras detach, G chrome:// rechazado, H abort por cambio de pestaña,
-I typos autocorregidos, J fallback JS forzado, K fallback setter forzado,
-L input en form multi-línea sin submit.
+re-tipeo tras detach / Esc tragado sin llegar al sitio, G chrome:// rechazado,
+H abort por cambio de pestaña, I typos autocorregidos, J fallback JS forzado
+(+ 1 beforeinput nativo por input), K fallback setter forzado, L input en
+form multi-línea sin submit, M timeStamp de los eventos CDP coherente con
+performance.now(), N campo con texto previo (badge OK contra línea base),
+O caret en el medio sin duplicar ñ ¿ ¡ é, P editor async (inserta 60 ms
+después) sin duplicar especiales.
 
 Ejecución: `python3 tools/e2e.py` (levanta la página de prueba en
 `0.0.0.0:8737` y lanza Chromium con la extensión cargada).
@@ -120,5 +142,7 @@ Otros scripts de `tools/`: `smoke.py` (carga mínima), `make_icons.py`
 ## Verificación manual pendiente
 
 Lo que no se puede simular headless: el infobar de "software de depuración"
-visible, el atajo real Alt+Shift+V, y los sitios reales (X, Gmail) con
-login propio.
+visible, el atajo real Alt+Shift+V, el **click en el ícono de la barra** (que
+pasa por la UI del browser y puede desenfocar el documento — verificar en un
+sitio real que tipea igual que con el atajo), y los sitios reales (X, Gmail)
+con login propio.

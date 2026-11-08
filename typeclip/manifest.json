@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TypeClip",
-  "version": "1.1.0",
+  "version": "1.2.0",
+  "minimum_chrome_version": "116",
   "description": "Lee el portapapeles y lo tipea caracter a caracter (eventos de teclado reales) en el campo con foco.",
   "permissions": ["debugger", "clipboardRead", "offscreen", "activeTab", "scripting", "storage"],
   "background": { "service_worker": "background.js" },

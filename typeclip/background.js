@@ -351,21 +351,40 @@ async function runSession() {
     dbglog("singleline", "input de una línea: saltos colapsados a espacios (anti-submit)");
   }
 
+  // --- 2c) Línea base del campo ANTES de tipear. Sin esto, un campo que ya
+  // tenía texto daría DIF siempre en la verificación final (nunca puede
+  // "coincidir" con el portapapeles entero). Queda solo en memoria, como
+  // todo el texto que pasa por acá: nunca se loguea ni se guarda. ---
+  const baseRead = await sendToContent(tab.id, editableFrame.frameId, { tc: "read" });
+  const baseline = baseRead.ok ? (baseRead.text ?? "") : "";
+  if (!session) return; // cancel() durante el arranque: cancel ya limpió todo
+
   // --- 3) Armar el plan y arrancar los monitores del content script. ---
   const plan = buildPlan(textToType, settings);
   if (!plan.length) { session = null; return badge("ERR", COLOR_ERR, "TypeClip: nada tipeable en el portapapeles"); }
-  await sendToContent(tab.id, editableFrame.frameId, { tc: "start-monitor" });
+  const frameId = editableFrame.frameId; // capturado: cancel() puede anular session
+  await sendToContent(tab.id, frameId, { tc: "start-monitor" });
+  if (!session) { // cancel() llegó durante el arranque: no dejar el monitor vivo
+    await sendToContent(tab.id, frameId, { tc: "stop-monitor" });
+    return;
+  }
   startGlobalMonitors();
 
-  // --- 4) Método principal: chrome.debugger + CDP; si falla, fallback JS. ---
+  // --- 4) Método principal: chrome.debugger + CDP; si falla, fallback JS.
+  // Si cancel() llega durante el attach, el debugger hay que soltarlo ACÁ:
+  // nadie más lo haría y quedaría el infobar colgado en la pestaña. ---
   let attached = false;
   try {
     await chrome.debugger.attach({ tabId: tab.id }, "1.3");
-    session.attached = true;
     attached = true;
-  } catch (e) {
-    session.attached = false;
+  } catch (e) { /* attach falla → fallback JS */ }
+  if (!session) { // cancel() durante el arranque
+    stopGlobalMonitors();
+    if (attached) { try { await chrome.debugger.detach({ tabId: tab.id }); } catch (_) { /* ya desprendido */ } }
+    await sendToContent(tab.id, frameId, { tc: "stop-monitor" });
+    return;
   }
+  session.attached = attached;
 
   const human = makeHumanizer(settings);
   startKeepalive();
@@ -391,9 +410,10 @@ async function runSession() {
     try { await chrome.debugger.detach({ tabId: tab.id }); } catch (_) { /* ya desprendido */ }
   }
   if (!session) return; // abort()/cancel() ya limpiaron todo
+  const s = session; // desde acá, cancel() puede anular session en cualquier await
 
   // --- 5) Verificación final contra el texto del portapapeles. ---
-  const methodLabel = outcome.method || session.method;
+  const methodLabel = outcome.method || s.method;
   if (outcome.status === "cancelled") {
     session = null;
     return; // cancel() ya hizo detach + badge limpio
@@ -405,14 +425,18 @@ async function runSession() {
     return;
   }
 
-  const finalRead = await sendToContent(tab.id, session.frameId, { tc: "read" });
-  await sendToContent(tab.id, session.frameId, { tc: "stop-monitor" });
+  const finalRead = await sendToContent(s.tabId, s.frameId, { tc: "read" });
+  await sendToContent(s.tabId, s.frameId, { tc: "stop-monitor" });
   session = null;
 
   const expected = normalizeForCompare(textToType);
   const got = finalRead.ok ? normalizeForCompare(finalRead.text ?? "") : "";
   if (finalRead.ok && expected === got) {
     badge("OK", COLOR_OK, "TypeClip: listo · método " + methodLabel + " · el campo coincide con el portapapeles");
+  } else if (finalRead.ok && baseline.trim() && got.includes(expected)) {
+    // El campo ya tenía texto: el tipeo quedó insertado adentro (el caret pudo
+    // estar en cualquier posición). "Contains" y no igualdad exacta.
+    badge("OK", COLOR_OK, "TypeClip: listo · método " + methodLabel + " · el tipeo quedó insertado (el campo ya tenía texto)");
   } else if (finalRead.ok) {
     badge("DIF", COLOR_WARN,
       "TypeClip: terminó (método " + methodLabel + ") pero el campo NO coincide con el portapapeles" +
@@ -454,10 +478,13 @@ function cdp(tabId, method, params) {
 function keyEvent(type, o) {
   // Evento de teclado CDP con los campos que Chrome usa para sintetizar
   // keydown/keypress/beforeinput/input con isTrusted=true.
+  // NOTA: NO se envía `timestamp`: CDP lo espera en SEGUNDOS desde epoch y un
+  // Date.now() en milisegundos dejaba el event.timeStamp del sitio ~1.7e15 ms
+  // a futuro (medido) — justo en la parte que quiere verse como teclado real.
+  // Sin el campo, Chrome estampa la hora actual (igual que Puppeteer).
   const ev = {
     type,
     modifiers: o.modifiers || 0,
-    timestamp: Date.now(),
     key: o.key,
     code: o.code || "",
     windowsVirtualKeyCode: o.vk || 0,
@@ -474,6 +501,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function playCdp(plan, delayFn) {
   const tabId = session.tabId;
+  const frameId = session.frameId; // capturado: cancel() puede anular session
   dbglog("playCdp inicia", "plan=" + plan.length + " pasos");
   const specialVerified = new Set();   // code points no-US ya verificados vía keyDown+text
   const specialNeedInsert = new Set(); // code points no-US que NO insertan y van por insertText
@@ -501,7 +529,7 @@ async function playCdp(plan, delayFn) {
   let prevCh = null;
   let lastPct = -1;
   for (let i = 0; i < plan.length; i++) {
-    if (session?.cancel || session?.tabId !== tabId) return { status: "cancelled" };
+    if (!session || session.cancel || session.tabId !== tabId) return { status: "cancelled" };
     const step = plan[i];
 
     // Delay humanizado antes del paso.
@@ -510,7 +538,7 @@ async function playCdp(plan, delayFn) {
     else if (step.pre === "typo-fix") ms = 80 + Math.random() * 160;
     else ms = delayFn(prevCh);
     await sleep(ms);
-    if (session?.cancel || session?.tabId !== tabId) return { status: "cancelled" };
+    if (!session || session.cancel || session.tabId !== tabId) return { status: "cancelled" };
 
     try {
       if (step.t === "char") {
@@ -518,14 +546,28 @@ async function playCdp(plan, delayFn) {
           await insertSingle(step.text); // emoji / verificado-que-falla: UN code point
         } else {
           // keyDown con `text` genera keydown → keypress → beforeinput(insertText) → input.
+          // Sonda de caracteres fuera del layout US (ñ, á, ¿…): la PRIMERA vez
+          // que aparece cada uno, verificar que el keyDown lo insertó DE VERDAD.
+          // Se compara el LARGO del campo antes/después — mirar la cola asumía
+          // caret al final y duplicaba el caracter si estaba en el medio — y se
+          // espera hasta ~150 ms porque hay editores que insertan async
+          // (Lexical, ProseMirror…). Si no entró → Input.insertText de ese
+          // único code point (regla del spec).
+          const needProbe = step.special && !specialVerified.has(step.text);
+          let len0 = -1;
+          if (needProbe) {
+            const r0 = await sendToContent(tabId, frameId, { tc: "read" });
+            if (r0.ok) len0 = Array.from(r0.text || "").length;
+          }
           await playCharKey(step);
-          // Verificación puntual de caracteres fuera del layout US (ñ, á, ¿…):
-          // la PRIMERA vez que aparece cada uno, leer la cola del campo y, si no
-          // entró, caer a Input.insertText para ese único caracter (regla del spec).
-          if (step.special && !specialVerified.has(step.text)) {
-            const r = await sendToContent(tabId, session.frameId, { tc: "read" });
-            const tail = (r.ok ? r.text || "" : "").slice(-2);
-            if (tail.endsWith(step.text)) {
+          if (needProbe) {
+            let inserted = false;
+            for (let waited = 0; waited <= 150 && !inserted; waited += 25) {
+              const r = await sendToContent(tabId, frameId, { tc: "read" });
+              if (r.ok && Array.from(r.text || "").length > len0) inserted = true;
+              else await sleep(25);
+            }
+            if (inserted) {
               specialVerified.add(step.text);
               dbglog("probe@" + i, "ok (cp " + step.text.codePointAt(0) + ")");
             } else {

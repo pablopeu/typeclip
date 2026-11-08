@@ -221,6 +221,7 @@ def main():
         PAYLOADS["largo"] = page.evaluate("() => window.__payloads.largo")
         assert len(PAYLOADS["largo"]) > 2000, "payload largo demasiado corto"
         PAYLOADS["multiline"] = page.evaluate("() => window.__payloads.multiline")
+        PAYLOADS["especiales"] = page.evaluate("() => window.__payloads.especiales")
 
         # ---------------- A) input + criterio 6 (eventos trusted) ----------------
         set_settings(sw)
@@ -316,6 +317,11 @@ def main():
         if not ok_f:
             det += "\nDBG SW: " + " || ".join(dbg_f[-20:])
         report("F) cancelación por Esc (keydown trusted vía debugger)", ok_f, det)
+        # El Esc de cancelación debe TRAGARSE (document-captura, preventDefault +
+        # stopImmediatePropagation): si llega al campo, el sitio lo procesa
+        # (p.ej. X abre "guardar borrador"). El contador vive en la página.
+        esc_seen = page.evaluate("() => window.__escSeen || 0")
+        report("F) Esc cancela sin llegar al sitio (tragado)", esc_seen == 0, f"escSeen={esc_seen}")
 
         # Cancelación por re-invocación del atajo (toggle) — camino invoke().
         invoke(sw)
@@ -424,6 +430,17 @@ def main():
         report("J) fallback JS — sin paste, 1 cp por evento, keydown sintéticos",
                pastes == 0 and multi == 0 and untrusted > 0,
                f"paste={pastes} data_multicp={multi} keydown_no_trusted={untrusted}")
+        # Sin beforeinput SINTÉTICO: antes del fix se disparaba uno propio por
+        # caracter (isTrusted=false) y en editores que hacen
+        # preventDefault(beforinput) el caracter entraba DOS veces. Ahora van
+        # solo los nativos que genere execCommand (en textarea dispara input;
+        # el beforeinput del editing engine, donde lo emita).
+        bi_j = page.evaluate("() => (window.__events||[]).filter(r => r.type==='beforeinput').length")
+        bi_synth = page.evaluate("() => (window.__events||[]).filter(r => r.type==='beforeinput' && !r.isTrusted).length")
+        in_j = page.evaluate("() => (window.__events||[]).filter(r => r.type==='input').length")
+        report("J) fallback JS — sin beforeinput sintético",
+               bi_synth == 0 and in_j > 0 and bi_j <= in_j,
+               f"beforeinput={bi_j} ({bi_synth} sintéticos) input={in_j}")
 
         # ---------------- K) FALLBACK 2 forzado: setter nativo -----------------
         # execCommand anulado EN LA PÁGINA (válido: en la página de la extensión
@@ -464,6 +481,68 @@ def main():
         report("L) input en form — multi-línea sin submit ni Enter", ok and submits == 0 and enters == 0, det)
         report("L) input en form — badge OK (saltos→espacios, método CDP)",
                b == "OK" and "CDP" in tip, f"badge={b!r} tip={tip[:70]!r}")
+
+        # ---------------- M) timeStamp de los eventos CDP ----------------------
+        # Los keydown/input que genera TypeClip deben tener un e.timeStamp
+        # coherente con performance.now(). Antes del fix se enviaba
+        # timestamp: Date.now() (ms) donde CDP espera segundos-epoch → el
+        # timeStamp del sitio quedaba ~1.7e15 ms a futuro (medido).
+        set_settings(sw)
+        prep(page, "#ta", "simple")
+        page.evaluate("""() => {
+          window.__ts = [];
+          const ta = document.getElementById('ta');
+          for (const t of ['keydown', 'input']) ta.addEventListener(t, (e) => {
+            if (e.isTrusted) window.__ts.push(e.timeStamp - performance.now());
+          }, { capture: true });
+        }""")
+        invoke(sw)
+        ok = wait_value(page, "#ta", PAYLOADS["simple"], 30000)
+        time.sleep(0.5)
+        ts = page.evaluate("() => window.__ts || []")
+        max_d = max((abs(d) for d in ts), default=1e18)
+        report("M) timeStamp coherente (CDP)", ok and len(ts) > 10 and max_d < 1000,
+               f"{len(ts)} eventos, |delta| máx={max_d:.1f} ms")
+
+        # ---------------- N) campo con texto previo (caret al final) -----------
+        # Línea base: el campo ya tenía texto → el badge tiene que ser OK (el
+        # tipeo quedó insertado) y no DIF eterno, y sin duplicar especiales.
+        prep(page, "#ta", "especiales")
+        page.eval_on_selector("#ta", "el => { el.value = 'antes: '; el.setSelectionRange(7, 7); }")
+        invoke(sw)
+        got = wait_stable(page, "#ta", 60000)
+        time.sleep(1)
+        b, tip = badge(sw), badge_tooltip(sw)
+        exp_n = "antes: " + PAYLOADS["especiales"]
+        report("N) campo con texto previo — inserta completo y sin duplicar",
+               norm(got) == norm(exp_n) and got.count("ñ") == 3,
+               "" if norm(got) == norm(exp_n) else f"quedó: {got!r}")
+        report("N) campo con texto previo — badge OK (verifica contra línea base)",
+               b == "OK" and "ya tenía texto" in tip, f"badge={b!r} tip={tip[:80]!r}")
+
+        # ---------------- O) caret en el medio + caracteres especiales ---------
+        # La sonda vieja miraba la COLA del campo (asumía caret al final) y
+        # duplicaba la primera ñ/¿/¡/é. Ahora compara largos antes/después.
+        prep(page, "#ta", "especiales")
+        page.eval_on_selector("#ta", "el => { el.value = 'abcdef'; el.setSelectionRange(3, 3); }")
+        invoke(sw)
+        got = wait_stable(page, "#ta", 60000)
+        exp_o = "abc" + PAYLOADS["especiales"] + "def"
+        report("O) caret en el medio — sin duplicar ñ ¿ ¡ é",
+               norm(got) == norm(exp_o),
+               "" if norm(got) == norm(exp_o) else f"quedó: {got!r} esperado: {exp_o!r}")
+
+        # ---------------- P) editor async (inserta 60 ms después) --------------
+        # #xce2 cancela el beforeinput y aplica el texto 60 ms después (render
+        # diferido tipo Lexical/ProseMirror). La sonda debe ESPERAR ese delay;
+        # si lee en el acto, cae a insertText y el caracter entra dos veces.
+        prep(page, "#xce2", "especiales")
+        invoke(sw)
+        got = wait_stable(page, "#xce2", 60000)
+        exp_p = PAYLOADS["especiales"]
+        ok_p = norm(got).rstrip("\n") == norm(exp_p).rstrip("\n")
+        report("P) editor async — la sonda espera el render diferido",
+               ok_p, "" if ok_p else f"quedó: {got!r} esperado: {exp_p!r}")
     finally:
         ctx.close()
         httpd.shutdown()

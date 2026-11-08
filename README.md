@@ -71,6 +71,9 @@ deleted).
 To see the detail behind OK/DIF/ERR, leave the mouse over the icon for a
 second.
 
+If the field already had text before you ran TypeClip, **OK** means the typed
+text landed inside it (the whole field can't match what you copied).
+
 #### Why can DIF happen?
 
 The text ended up different from what you copied, almost always because
@@ -117,7 +120,10 @@ saved automatically (it syncs with your Chrome account):
 #### Changing the shortcut
 
 If Alt + Shift + V clashes with something: `chrome://extensions/shortcuts` →
-find TypeClip → click the pencil and press your preferred combination.
+find TypeClip → click the pencil and press your preferred combination. On
+Windows with two or more keyboard layouts, Alt+Shift is the system's "switch
+language" combination and can get in the way — if that happens, pick a
+Ctrl-based combination.
 
 ### Frequently asked questions
 
@@ -220,6 +226,10 @@ Se corta en el acto y queda lo que ya se tipeó (sin borrar nada).
 
 Para ver el detalle de OK/DIF/ERR, dejá el mouse un segundo sobre el ícono.
 
+Si el campo ya tenía texto antes de ejecutar TypeClip, **OK** significa que el
+tipeo quedó insertado adentro (el campo entero no puede coincidir con lo
+copiado).
+
 #### ¿Por qué puede salir DIF?
 
 El texto quedó distinto a lo copiado, casi siempre por algo que hizo **la propia
@@ -266,7 +276,10 @@ Todo se guarda solo (se sincroniza con tu cuenta de Chrome):
 #### Cambiar el atajo
 
 Si Alt + Shift + V te choca con algo: `chrome://extensions/shortcuts` →
-buscá TypeClip → hacé click en el lápiz y apretá tu combinación preferida.
+buscá TypeClip → hacé click en el lápiz y apretá tu combinación preferida. En
+Windows con dos o más distribuciones de teclado, Alt+Shift es la combinación
+del sistema para "cambiar idioma" y puede estorbar — si te pasa, elegí una
+combinación con Ctrl.
 
 ### Preguntas frecuentes
 

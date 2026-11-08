@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 const PAYLOADS = {
   simple: "Hola mundo, esto es una prueba simple de TypeClip.",
+  especiales: "mañana ñoño ¿bien? ¡café!",
   multiline: "Primera línea del portapapeles.\nSegunda línea tras un salto.\n\nY una tercera, tras un salto doble.",
   x280: "Prueba del composer con 280+ caracteres: ñandú, garçon, ¿cómo estás?, ¡holaaa! Café con leche ☕ y un emoji de cohete 🚀.\nSegunda línea que termina mencionando a @pablo\nTercer línea: enough, already; testing: enter keys & symbols $100 * 3 = ?",
   largo: null, // se genera abajo
@@ -104,7 +105,18 @@ function renderLogTable(maxRows) {
 }
 
 const FIELDS = [document.getElementById("inp"), document.getElementById("ta"),
-                document.getElementById("ce"), document.getElementById("xce")];
+                document.getElementById("ce"), document.getElementById("xce"),
+                document.getElementById("xce2")];
+// Contador de Esc REAL que llega al nivel del campo (fase burbuja): mientras
+// TypeClip tipea, el Esc de cancelación debe TRAGARSE en document-captura y
+// nunca llegar acá (si no, el sitio lo recibe: p.ej. X abre su diálogo de
+// "guardar borrador"). El arnés E2E lo asserta en el bloque F.
+window.__escSeen = 0;
+for (const f of FIELDS) {
+  f.addEventListener("keydown", (e) => {
+    if (e.isTrusted && e.key === "Escape") window.__escSeen++;
+  });
+}
 for (const f of FIELDS) {
   for (const type of ["keydown", "keypress", "keyup", "beforeinput", "input", "paste", "copy", "cut", "drop", "dragover"]) {
     f.addEventListener(type, (e) => record(e, f.id), { capture: true });
@@ -148,6 +160,32 @@ xce.addEventListener("keydown", (e) => {
              inputType: null, data: null }, "XCE");
   }
 });
+
+// ---------------------------------------------------------------------------
+// Editor async (Lexical/ProseMirror-like): cancela el beforeinput y aplica el
+// texto 60 ms después. Ejercita la sonda de caracteres especiales: tiene que
+// esperar el render diferido en vez de duplicar el caracter con insertText.
+// ---------------------------------------------------------------------------
+{
+  const ed = document.getElementById("xce2");
+  ed.addEventListener("beforeinput", (e) => {
+    if (e.inputType !== "insertText" || e.data === null) return;
+    e.preventDefault();
+    const data = e.data;
+    setTimeout(() => {
+      const sel = document.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      const node = document.createTextNode(data);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.setEndAfter(node);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }, 60);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Verificación (criterio 6)
