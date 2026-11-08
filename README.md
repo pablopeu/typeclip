@@ -152,6 +152,47 @@ what the site does with each key; watch the final badge (OK/DIF).
 **What about phones?**
 No: Chrome extensions don't exist on Android/iOS.
 
+### Permissions, line by line
+
+TypeClip asks for six permissions, all of them for its one job. It does **not**
+ask for access to any website (no "read and change all your data on all
+websites"):
+
+- `debugger` — sends the real keyboard events (key by key) into the field.
+  Attached only while typing, on the tab you invoked it from; released the
+  instant it ends or you cancel.
+- `clipboardRead` — reads the text you copied, only at the exact moment you
+  run it. Nothing else, ever.
+- `offscreen` — a hidden document that reads the clipboard (service workers
+  can't) and hands the text over in memory.
+- `activeTab` — limits everything to the tab you explicitly invoked TypeClip
+  on.
+- `scripting` — injects the small content script that finds the focused field
+  and runs the in-page fallback.
+- `storage` — saves your options (speed, language…). Only settings, never
+  typed text.
+
+A tool in the repository ([`tools/audit.py`](tools/audit.py)) verifies
+mechanically that every permission has real usage and that there are no
+network requests of any kind.
+
+**Work or school Chrome (managed):** on computers managed by an organization,
+the "controlled by automated test software" banner may not appear, and in
+some managed setups `chrome.debugger` can be blocked by policy — in that case
+TypeClip falls back to simulated keyboard events (the `JS` badge method) or
+tells you why it can't run. There are public comments that a future Chrome
+may restrict the debugger API on managed profiles; that is **not confirmed**
+in the official release notes, so treat it as rumor for now.
+
+Privacy and demo:
+
+- Full privacy policy: [PRIVACY.md](PRIVACY.md) (also in
+  [web form](docs/privacy.html)).
+- A tiny page with fields to try it, no login needed:
+  [docs/demo.html](docs/demo.html) — open it served over any `http(s)` URL
+  (for example via GitHub Pages: `pablopeu.github.io/typeclip/demo.html`),
+  copy something, click a field and run TypeClip.
+
 ---
 
 For technical details (architecture, typing methods, privacy rules and the
@@ -308,6 +349,48 @@ badge final (OK/DIF).
 
 **¿Y en el celular?**
 No: las extensiones de Chrome no existen en Android/iOS.
+
+### Permisos, uno por uno
+
+TypeClip pide seis permisos, todos para su único trabajo. **No** pide acceso a
+ningún sitio web (no hay "leer y cambiar todos tus datos en todos los
+sitios"):
+
+- `debugger` — envía los eventos de teclado reales (tecla por tecla) al campo.
+  Se adjunta solo mientras tipea, en la pestaña desde la que lo invocaste; se
+  libera al instante al terminar o cancelar.
+- `clipboardRead` — lee el texto que copiaste, únicamente en el momento exacto
+  en que lo ejecutás. Nada más, nunca.
+- `offscreen` — un documento oculto que lee el portapapeles (los service
+  workers no pueden) y pasa el texto en memoria.
+- `activeTab` — limita todo a la pestaña en la que invocaste TypeClip.
+- `scripting` — inyecta el pequeño content script que encuentra el campo con
+  foco y ejecuta el fallback dentro de la página.
+- `storage` — guarda tus opciones (velocidad, idioma…). Solo configuración,
+  nunca texto tipeado.
+
+Una herramienta del repositorio ([`tools/audit.py`](tools/audit.py)) verifica
+mecánicamente que cada permiso tenga uso real y que no haya pedidos de red de
+ningún tipo.
+
+**Chrome del trabajo o la escuela (gestionado):** en computadoras gestionadas
+por una organización, el cartel de "software de pruebas automatizadas" puede
+no aparecer, y en algunas configuraciones `chrome.debugger` puede estar
+bloqueado por política — en ese caso TypeClip cae a eventos de teclado
+simulados (el método `JS` del badge) o te dice por qué no puede correr. Hay
+comentarios públicos de que un Chrome futuro restringiría la API de debugger
+en perfiles gestionados; **no está confirmado** en las release notes
+oficiales, así que por ahora tomalo como rumor.
+
+Privacidad y demo:
+
+- Política de privacidad completa: [PRIVACY.md](PRIVACY.md) (también en
+  [forma web](docs/privacy.html)).
+- Una mini página con campos para probarlo, sin login:
+  [docs/demo.html](docs/demo.html) — abrila servida por cualquier URL
+  `http(s)` (por ejemplo vía GitHub Pages:
+  `pablopeu.github.io/typeclip/demo.html`), copiá algo, hacé click en un campo
+  y ejecutá TypeClip.
 
 ---
 

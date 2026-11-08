@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TypeClip — demo fields</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+  fieldset { border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    border-radius: 8px; margin-bottom: 1.2rem; }
+  legend { font-weight: 600; padding: 0 .4rem; }
+  input[type=text], textarea, div[contenteditable] {
+    width: 100%; box-sizing: border-box; padding: .5rem; margin: .3rem 0 .6rem;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 6px;
+    background: color-mix(in srgb, currentColor 5%, transparent); color: inherit; font: inherit;
+  }
+  textarea, div[contenteditable] { min-height: 6rem; }
+  div[contenteditable] { white-space: pre-wrap; }
+  div[contenteditable]:empty::before { content: attr(data-placeholder); opacity: .45; }
+  ol li { margin-bottom: .4rem; }
+  small { color: color-mix(in srgb, currentColor 55%, transparent); }
+</style>
+</head>
+<body>
+<h1>TypeClip — demo fields</h1>
+<p id="intro">
+A tiny static page to try <strong>TypeClip</strong> without logging in anywhere.
+Copy any text (Ctrl+C / ⌘C), click one of the fields below, and run TypeClip
+(shortcut <b>Alt+Shift+V</b> or a click on its toolbar icon). It will type your
+text key by key, like a person. <b>Esc</b> cancels.
+</p>
+<p id="intro-es" hidden lang="es">
+Una mini página estática para probar <strong>TypeClip</strong> sin iniciar sesión en
+ningún lado. Copiá cualquier texto (Ctrl+C), hacé click en un campo de abajo y
+ejecutá TypeClip (atajo <b>Alt+Shift+V</b> o click en su ícono). Va a tipear tu
+texto letra por letra, como una persona. <b>Esc</b> cancela.
+</p>
+<p><button type="button" id="lang">Español</button></p>
+
+<fieldset>
+  <legend id="l1">1) Single-line input</legend>
+  <input type="text" id="inp" placeholder="single-line input" autocomplete="off">
+</fieldset>
+
+<fieldset>
+  <legend id="l2">2) Multi-line textarea</legend>
+  <textarea id="ta" placeholder="textarea: line breaks, accents, ñ, emojis…"></textarea>
+</fieldset>
+
+<fieldset>
+  <legend id="l3">3) Contenteditable (like rich editors)</legend>
+  <div id="ce" contenteditable="true" data-placeholder="contenteditable field"></div>
+</fieldset>
+
+<p><small id="note">While TypeClip types, Chrome shows a yellow “controlled by automated
+test software” banner — that’s expected, and it disappears by itself when the
+typing finishes. TypeClip never presses Post/Send for you.</small></p>
+<p><small id="note-es" hidden lang="es">Mientras TypeClip tipea, Chrome muestra el cartel
+amarillo de “software de depuración” — es esperado y desaparece solo cuando
+termina el tipeo. TypeClip nunca aprieta Publicar/Enviar por vos.</small></p>
+
+<script>
+  // Solo cambia de idioma los textos de la página. Sin recursos remotos.
+  const es = {
+    title: "TypeClip — campos de demo", introBtn: "English",
+    l1: "1) Input de una línea", l2: "2) Textarea multi-línea", l3: "3) Contenteditable (como los editores ricos)",
+  };
+  const en = {
+    title: "TypeClip — demo fields", introBtn: "Español",
+    l1: "1) Single-line input", l2: "2) Multi-line textarea", l3: "3) Contenteditable (like rich editors)",
+  };
+  let lang = "en";
+  document.getElementById("lang").addEventListener("click", () => {
+    lang = lang === "en" ? "es" : "en";
+    const t = lang === "en" ? en : es;
+    document.title = t.title;
+    document.documentElement.lang = lang;
+    document.getElementById("lang").textContent = t.introBtn;
+    document.getElementById("intro").hidden = lang !== "en";
+    document.getElementById("intro-es").hidden = lang !== "es";
+    document.getElementById("note").hidden = lang !== "en";
+    document.getElementById("note-es").hidden = lang !== "es";
+    document.getElementById("l1").textContent = t.l1;
+    document.getElementById("l2").textContent = t.l2;
+    document.getElementById("l3").textContent = t.l3;
+  });
+</script>
+</body>
+</html>

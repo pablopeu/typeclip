@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TypeClip — Privacy Policy</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.65 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; }
+  .lang { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+  .lang button { padding: .3rem .9rem; border-radius: 999px; cursor: pointer; font: inherit;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent); background: transparent; color: inherit; }
+  .lang button[aria-pressed="true"] { background: color-mix(in srgb, currentColor 15%, transparent); font-weight: 700; }
+  code { background: color-mix(in srgb, currentColor 8%, transparent); padding: .1rem .3rem; border-radius: 4px; }
+  small { color: color-mix(in srgb, currentColor 55%, transparent); }
+</style>
+</head>
+<body>
+<div class="lang">
+  <button type="button" id="btnEn" aria-pressed="true">English</button>
+  <button type="button" id="btnEs" aria-pressed="false">Español</button>
+</div>
+
+<section id="en" lang="en">
+<h1>TypeClip — Privacy Policy</h1>
+<p><strong>Last updated: 2026-11-08.</strong></p>
+<p>TypeClip is a Chrome extension that types the text you copied into the field
+you choose, key by key. This page explains, in plain terms, exactly what it
+does with your data.</p>
+
+<h2>What TypeClip reads</h2>
+<ul>
+<li>The <strong>text of your clipboard</strong>, and only at the exact moment you run
+TypeClip (keyboard shortcut or toolbar click). It is held <strong>in memory
+only</strong>, used to type it, and discarded. It is never written to disk.</li>
+<li>The <strong>current content of the field</strong> you point it at, to verify the result
+(and to know what was already there before typing). Also memory-only.</li>
+</ul>
+
+<h2>What TypeClip stores</h2>
+<p><strong>Your options only</strong> (typing speed, options-page language, etc.) in
+<code>chrome.storage.sync</code>. That storage is provided and synced by Chrome with your
+Google account — TypeClip has no servers. If you remove the extension, the
+stored options go with it.</p>
+
+<h2>What TypeClip never does</h2>
+<ul>
+<li><strong>Never transmits anything.</strong> No network requests of any kind: no fetch,
+no XHR, no WebSockets, no analytics, no telemetry.</li>
+<li><strong>Never stores the typed text</strong> — not locally, not anywhere.</li>
+<li><strong>Never shares data with third parties.</strong> There are no third parties.</li>
+<li><strong>No remote code.</strong> Everything that runs ships inside the extension
+package and can be inspected in the source repository.</li>
+</ul>
+
+<h2>The “debugger” permission</h2>
+<p>TypeClip uses Chrome’s debugger protocol to send <strong>real keyboard
+events</strong> to the field, which is what makes sites accept the text as typing.
+While it types, Chrome shows a yellow banner (“Chrome is being controlled by
+automated test software”). That banner is Chrome being transparent with you;
+TypeClip detaches the debugger the moment typing ends (or when you cancel
+with Esc) and the banner disappears.</p>
+
+<h2>Contact</h2>
+<p>Questions or issues:
+<a href="https://github.com/pablopeu/typeclip/issues">github.com/pablopeu/typeclip/issues</a>.</p>
+<p><em>The use of information adheres to the Chrome Web Store User Data Policy,
+including the Limited Use requirements.</em></p>
+</section>
+
+<section id="es" lang="es" hidden>
+<h1>TypeClip — Política de privacidad</h1>
+<p><strong>Última actualización: 2026-11-08.</strong></p>
+<p>TypeClip es una extensión de Chrome que tipea, letra por letra, el texto que
+copiaste en el campo que elijas. Esta página explica en claro exactamente qué
+hace con tus datos.</p>
+
+<h2>Qué lee TypeClip</h2>
+<ul>
+<li>El <strong>texto de tu portapapeles</strong>, únicamente en el momento exacto en que
+ejecutás TypeClip (atajo o click en el ícono). Vive <strong>solo en memoria</strong>,
+se usa para tipearlo y se descarta. Nunca se escribe a disco.</li>
+<li>El <strong>contenido actual del campo</strong> al que lo apuntás, para verificar el
+resultado (y saber qué había antes de tipear). También solo en memoria.</li>
+</ul>
+
+<h2>Qué guarda TypeClip</h2>
+<p><strong>Solo tus opciones</strong> (velocidad, idioma de la página de opciones, etc.) en
+<code>chrome.storage.sync</code>. Ese almacenamiento lo provee y sincroniza Chrome con tu
+cuenta de Google — TypeClip no tiene servidores. Si desinstalás la extensión,
+las opciones se van con ella.</p>
+
+<h2>Qué nunca hace TypeClip</h2>
+<ul>
+<li><strong>Nunca transmite nada.</strong> Cero pedidos de red: sin fetch, sin XHR, sin
+WebSockets, sin analítica, sin telemetría.</li>
+<li><strong>Nunca guarda el texto tipeado</strong> — ni localmente ni en ningún lado.</li>
+<li><strong>Nunca comparte datos con terceros.</strong> No hay terceros.</li>
+<li><strong>Sin código remoto.</strong> Todo lo que corre viene adentro del paquete de la
+extensión y se puede inspeccionar en el repositorio.</li>
+</ul>
+
+<h2>El permiso “debugger”</h2>
+<p>TypeClip usa el protocolo de depuración de Chrome para enviar <strong>eventos de
+teclado reales</strong> al campo, que es lo que hace que los sitios acepten el texto
+como tipeo. Mientras tipea, Chrome muestra un cartel amarillo (“Chrome está
+siendo controlado por un software de depuración”). Ese cartel es Chrome
+siendo transparente con vos; TypeClip desprende el debugger en el instante
+en que termina el tipeo (o cuando cancelás con Esc) y el cartel desaparece.</p>
+
+<h2>Contacto</h2>
+<p>Preguntas o problemas:
+<a href="https://github.com/pablopeu/typeclip/issues">github.com/pablopeu/typeclip/issues</a>.</p>
+<p><em>El uso de la información se adhiere a la Política de Datos de Usuario de la
+Chrome Web Store, incluyendo los requisitos de Uso Limitado (Limited Use).</em></p>
+</section>
+
+<script>
+  const en = document.getElementById("en"), es = document.getElementById("es");
+  const bEn = document.getElementById("btnEn"), bEs = document.getElementById("btnEs");
+  function show(which) {
+    en.hidden = which !== "en"; es.hidden = which !== "es";
+    bEn.setAttribute("aria-pressed", String(which === "en"));
+    bEs.setAttribute("aria-pressed", String(which === "es"));
+  }
+  bEn.addEventListener("click", () => show("en"));
+  bEs.addEventListener("click", () => show("es"));
+</script>
+</body>
+</html>
