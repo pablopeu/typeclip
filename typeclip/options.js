@@ -55,6 +55,13 @@ for (const [id, valId] of [["wpm", "wpmVal"], ["jitter", "jitterVal"], ["thinkPc
 }
 $("typos").addEventListener("change", syncTypoRow);
 
+// Abrir la página de atajos de chrome:// (los links <a> a chrome:// no se
+// pueden usar desde una página de extensión; tabs.create sí puede, y sin
+// handler inline: la CSP de las páginas MV3 bloquea onclick="…").
+$("openShortcuts").addEventListener("click", () => {
+  chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+});
+
 $("save").addEventListener("click", () => {
   chrome.storage.sync.set({ settings: readForm() }, () => {
     $("status").textContent = "Guardado ✓";
