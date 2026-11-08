@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>TypeClip — página de prueba</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 900px; margin: 1.5rem auto; padding: 0 1rem; }
+  fieldset { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 8px; margin-bottom: 1.2rem; }
+  legend { font-weight: 600; padding: 0 .4rem; }
+  input[type=text], textarea, div[contenteditable] {
+    width: 100%; box-sizing: border-box; padding: .5rem; margin: .3rem 0 .6rem;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 6px;
+    background: color-mix(in srgb, currentColor 5%, transparent); color: inherit; font: inherit;
+  }
+  textarea, div[contenteditable] { min-height: 6rem; }
+  /* Como los compositores reales (Gmail, X): pre-wrap para que los saltos de
+     línea del texto insertado sobrevivan a innerText. */
+  div[contenteditable] { white-space: pre-wrap; }
+  div[contenteditable]:empty::before { content: attr(data-placeholder); opacity: .45; }
+  button { padding: .4rem 1rem; border-radius: 6px; cursor: pointer; font: inherit;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+    background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; }
+  pre { background: color-mix(in srgb, currentColor 6%, transparent); padding: .6rem; border-radius: 6px;
+        max-height: 14rem; overflow: auto; font-size: 12px; }
+  .ok { color: #16a34a; font-weight: 700; }
+  .bad { color: #dc2626; font-weight: 700; }
+  #mencionPop { display: none; padding: .2rem .5rem; background: #1d9bf0; color: #fff; border-radius: 999px; font-size: 13px; }
+  table { border-collapse: collapse; font-size: 12px; }
+  td { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); padding: 2px 6px; }
+</style>
+</head>
+<body>
+<h1>TypeClip — página de prueba</h1>
+<p>Click en un campo, copiá un payload (botones de abajo), y ejecutá TypeClip (Alt+Shift+V o click en el ícono).</p>
+
+<fieldset>
+  <legend>Payloads → portapapeles</legend>
+  <button data-payload="x280">280+ con tildes, ñ, ¿¡, emoji, saltos y @mención</button>
+  <button data-payload="largo">2000+ caracteres</button>
+  <button data-payload="multiline">Multi-línea (para el input del form)</button>
+  <button data-payload="simple">Texto simple</button>
+  <span id="clipStatus"></span>
+</fieldset>
+
+<fieldset>
+  <legend>1) input dentro de un &lt;form&gt; (Enter NO debe enviarlo)</legend>
+  <form id="inpform">
+    <input type="text" id="inp" placeholder="input de texto común" autocomplete="off">
+  </form>
+</fieldset>
+
+<fieldset>
+  <legend>2) textarea</legend>
+  <textarea id="ta" placeholder="textarea de formulario"></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>3) contenteditable</legend>
+  <div id="ce" contenteditable="true" data-placeholder="contenteditable estilo Gmail/Draft"></div>
+</fieldset>
+
+<fieldset>
+  <legend>4) composer fake tipo X (Draft.js-like + typeahead de menciones)</legend>
+  <div id="xce" contenteditable="true" data-testid="tweetTextarea_0"></div>
+  <div id="mencionPop">👤 pablo — Enter para elegir</div>
+  <p><small>Si el texto tipeado contiene <code>@pablo</code> seguido de Enter, este editor se "come" el Enter
+  para elegir la sugerencia (imita el comportamiento del composer real). La verificación final de la extensión
+  tiene que marcar DIF en ese caso.</small></p>
+</fieldset>
+
+<fieldset>
+  <legend>Diagnóstico de eventos (criterio 6)</legend>
+  <p>
+    <button id="verify">Verificar eventos capturados</button>
+    <button id="clear">Limpiar log</button>
+  </p>
+  <div id="verifyOut">Sin verificar todavía.</div>
+  <table id="logTable"></table>
+</fieldset>
+
+<!-- Cuando esta página corre desde el origen de la extensión
+(chrome-extension://…/test/index.html), carga el content script ella misma:
+chrome.scripting no puede inyectar en páginas chrome-extension://, pero la
+extensión sí puede hablarle por chrome.tabs.sendMessage. Servida por http,
+este tag simplemente da 404 y la extensión inyecta content.js normalmente. -->
+<script src="../content.js"></script>
+
+<!-- Buffer oculto para copiar payloads vía execCommand("copy") cuando
+navigator.clipboard.writeText no está disponible (página de extensión). -->
+<textarea id="copybuf" style="position:absolute;left:-9999px" tabindex="-1"></textarea>
+
+<script src="app.js"></script>
+</body>
+</html>

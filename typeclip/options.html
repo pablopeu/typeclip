@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>TypeClip — opciones</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  fieldset { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 8px; margin-bottom: 1.2rem; }
+  legend { font-weight: 600; padding: 0 .4rem; }
+  label { display: block; margin: .7rem 0 .2rem; }
+  input[type=number], input[type=range] { width: 14rem; }
+  .val { font-variant-numeric: tabular-nums; color: color-mix(in srgb, currentColor 60%, transparent); }
+  .row { display: flex; gap: .8rem; align-items: center; }
+  button { padding: .45rem 1.2rem; border-radius: 6px; border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+           background: color-mix(in srgb, currentColor 8%, transparent); font: inherit; cursor: pointer; }
+  #status { margin-left: .8rem; color: #2a9d5c; }
+  small { color: color-mix(in srgb, currentColor 55%, transparent); }
+  .disabled { opacity: .45; }
+</style>
+</head>
+<body>
+<h1>TypeClip — opciones</h1>
+
+<fieldset>
+  <legend>Velocidad</legend>
+  <label>Velocidad base: <span class="val" id="wpmVal"></span> WPM (palabras por minuto)
+    <input type="range" id="wpm" min="40" max="250" step="5"></label>
+  <label>Variación humana (jitter): <span class="val" id="jitterVal"></span> %
+    <input type="range" id="jitter" min="10" max="100" step="5"></label>
+  <label><input type="checkbox" id="pauses"> Pausas extra (más largo tras espacios, puntuación y saltos de línea)</label>
+  <label>Pausa de "pensar" ocasional: <span class="val" id="thinkVal"></span> % de los caracteres
+    <input type="range" id="thinkPct" min="0" max="10" step="0.5"></label>
+</fieldset>
+
+<fieldset>
+  <legend>Errores de tipeo</legend>
+  <label><input type="checkbox" id="typos"> Simular errores (tecla vecina del QWERTY + Backspace para corregir)</label>
+  <div id="typoRow">
+    <label>Probabilidad de error por caracter: <span class="val" id="typoVal"></span> %
+      <input type="range" id="typoPct" min="0" max="5" step="0.1"></label>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>Caracteres especiales</legend>
+  <label>Tabulaciones del texto:
+    <select id="tabMode">
+      <option value="spaces">Reemplazar por espacios (un Tab real movería el foco)</option>
+      <option value="skip">Omitir</option>
+    </select></label>
+  <label>Cantidad de espacios por Tab: <span class="val" id="tabVal"></span>
+    <input type="range" id="tabSpaces" min="1" max="8" step="1"></label>
+</fieldset>
+
+<fieldset>
+  <legend>Atajo de teclado</legend>
+  <p>El atajo por defecto es <b>Alt+Shift+V</b> (Ctrl+Shift+V choca con "pegar sin formato").
+  Para cambiarlo: <a href="https://extensions.shortcuts" onclick="return false">chrome://extensions/shortcuts</a>
+  (copiá la dirección a la barra de omnibox; los links internos de chrome:// no se pueden abrir desde acá).</p>
+</fieldset>
+
+<p>
+  <button id="save">Guardar</button><span id="status"></span>
+</p>
+<p><small>El texto tipeado nunca se guarda ni se envía a ningún lado. Estas opciones se guardan
+en <code>chrome.storage.sync</code>.</small></p>
+
+<script src="options.js"></script>
+</body>
+</html>
