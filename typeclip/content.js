@@ -302,7 +302,7 @@ if (!window.__typeclip) {
         const el = editableRoot();
         sendResponse({
           ok: !!el,
-          reason: el ? undefined : "el foco no está en un input/textarea/contenteditable",
+          reason: el ? undefined : chrome.i18n.getMessage("whyNotEditable"),
           kind: el ? (el.isContentEditable ? "contenteditable" : el.tagName.toLowerCase()) : undefined,
         });
         return false;
@@ -338,7 +338,7 @@ if (!window.__typeclip) {
   const el = typeof editableRoot === "function" ? editableRoot() : null;
   return {
     ok: !!el,
-    reason: el ? undefined : "el foco no está en un input/textarea/contenteditable",
+    reason: el ? undefined : chrome.i18n.getMessage("whyNotEditable"),
     kind: el ? (el.isContentEditable ? "contenteditable" : el.tagName.toLowerCase()) : undefined,
   };
 })();

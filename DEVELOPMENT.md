@@ -97,6 +97,29 @@ Los íconos (barra de extensiones, manifest y el logo de 32px del título) se
 generan con `tools/make_icons.py` a partir de `TC.png` del raíz (square-pad
 sobre su propio fondo + LANCZOS).
 
+## Internacionalización de la extensión (`_locales`)
+
+La extensión usa `chrome.i18n` con `default_locale: "en"` y dos locales:
+`_locales/en/messages.json` y `_locales/es/messages.json`. **Los dos archivos
+son un paquete indivisible**: si el manifest declara `default_locale`, la
+carpeta `_locales` tiene que existir y tener ese idioma, o Chrome no carga la
+extensión.
+
+- Strings del manifest: `name`, `description`, `action.default_title` y la
+  descripción del comando usan `__MSG_<clave>__` (claves `extName`,
+  `extDesc`, `actionTitle`, `cmdDesc`).
+- Strings de runtime (badge y tooltips): `background.js` los resuelve con
+  `msg(clave, [sustituciones])` (wrapper de `chrome.i18n.getMessage`, con
+  `$NOMBRE$` y `placeholders` en los JSON). El prefijo `TypeClip: ` se agrega
+  en código (`TOOLTIP_PREFIX`), no en cada mensaje.
+- `content.js` usa `chrome.i18n.getMessage("whyNotEditable")` para el motivo
+  que viaja en el mensaje `init` (también disponible en content scripts).
+- El idioma lo decide Chrome (locale del navegador); el default es inglés. La
+  página de Opciones **no** usa `_locales` a propósito: tiene su selector
+  EN/ES explícito y recordado (ver arriba).
+- La suite E2E lanza Chromium con `--lang=en-US` y verifica los tooltips en
+  inglés (`does NOT match`, `already had text`).
+
 ## Invariantes (verificados por el arnés)
 
 - Cero eventos `paste`/`drop`; nunca `DataTransfer`.

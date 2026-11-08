@@ -228,7 +228,8 @@ def main():
     ctx = sync_playwright().start().chromium.launch_persistent_context(
         user_data_dir=tempfile.mkdtemp(prefix="tc-e2e-"),
         channel="chromium", headless=True,
-        args=[f"--disable-extensions-except={EXT}", f"--load-extension={EXT}", "--window-size=1400,1000"],
+        args=[f"--disable-extensions-except={EXT}", f"--load-extension={EXT}",
+              "--lang=en-US", "--window-size=1400,1000"],
         viewport=None,
     )
     try:
@@ -305,7 +306,7 @@ def main():
             b, tip = badge(sw), badge_tooltip(sw)
             eaten = page.eval_on_selector("#xce", "el => el.dataset.mentionEaten || '0'")
             report("D) X fake: el typeahead se comió el Enter", str(eaten) != "0", f"mentionEaten={eaten}")
-            report("D) X fake: badge DIF con tooltip explicativo", b == "DIF" and "NO coincide" in tip,
+            report("D) X fake: badge DIF con tooltip explicativo", b == "DIF" and "does NOT match" in tip,
                    f"badge={b!r} tip={tip[:80]!r}")
 
         if active("E"):
@@ -572,7 +573,7 @@ def main():
                    norm(got) == norm(exp_n) and got.count("ñ") == 3,
                    "" if norm(got) == norm(exp_n) else f"quedó: {got!r}")
             report("N) campo con texto previo — badge OK (verifica contra línea base)",
-                   b == "OK" and "ya tenía texto" in tip, f"badge={b!r} tip={tip[:80]!r}")
+                   b == "OK" and "already had text" in tip, f"badge={b!r} tip={tip[:80]!r}")
 
         if active("O"):
             # ---------------- O) caret en el medio + caracteres especiales ---------
@@ -626,7 +627,7 @@ def main():
             b, tip = badge(sw), badge_tooltip(sw)
             after_q = field_text(page, "#blocker")
             ok_dif = (outcome_q is not None and "done" in outcome_q
-                      and b == "DIF" and "NO coincide" in tip)
+                      and b == "DIF" and "does NOT match" in tip)
             det_q = f"outcome={outcome_q!r} badge={b!r} tip={tip[:80]!r}"
             if not ok_dif:
                 det_q += "\nDBG SW (sesión):\n" + "\n  ".join(seg_q)
@@ -689,7 +690,7 @@ def main():
                    ok_r, "" if ok_r else f"quedó: {got!r} esperado: {exp_r!r}")
             b, tip = badge(sw), badge_tooltip(sw)
             report("R) línea base repetida — OK por crecimiento de ocurrencias (no DIF falso)",
-                   b == "OK" and "ya tenía texto" in tip, f"badge={b!r} tip={tip[:80]!r}")
+                   b == "OK" and "already had text" in tip, f"badge={b!r} tip={tip[:80]!r}")
     finally:
         ctx.close()
         httpd.shutdown()

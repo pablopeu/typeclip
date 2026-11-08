@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "TypeClip",
+  "name": "__MSG_extName__",
   "version": "1.2.0",
   "minimum_chrome_version": "116",
-  "description": "Lee el portapapeles y lo tipea caracter a caracter (eventos de teclado reales) en el campo con foco.",
+  "default_locale": "en",
+  "description": "__MSG_extDesc__",
   "permissions": ["debugger", "clipboardRead", "offscreen", "activeTab", "scripting", "storage"],
   "background": { "service_worker": "background.js" },
   "action": {
-    "default_title": "TypeClip — tipear el portapapeles (Alt+Shift+V)",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
@@ -16,7 +17,7 @@
   "commands": {
     "type-clipboard": {
       "suggested_key": { "default": "Alt+Shift+V" },
-      "description": "Tipear el contenido del portapapeles en el campo enfocado"
+      "description": "__MSG_cmdDesc__"
     }
   },
   "options_page": "options.html",

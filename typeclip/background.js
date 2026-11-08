@@ -190,6 +190,11 @@ function dbglog(ev, data) {
 }
 globalThis.__typeclipDbg = () => globalThis.__dbgLog.slice();
 
+// Textos de UI localizados (_locales/<lang>/messages.json; default_locale "en").
+// El prefijo "TypeClip: " los hace inconfundibles en el tooltip del badge.
+const msg = (key, subs) => chrome.i18n.getMessage(key, subs || []) || key;
+const TOOLTIP_PREFIX = "TypeClip: ";
+
 function badge(text, color, tooltip) {
   dbglog("badge", JSON.stringify(text) + (tooltip ? " · " + tooltip.slice(0, 60) : ""));
   chrome.action.setBadgeText({ text: text || "" });
@@ -219,7 +224,7 @@ chrome.debugger.getTargets().then((targets) => {
   for (const t of orphans) {
     chrome.debugger.detach({ tabId: t.tabId }).then(() => {
       dbglog("stale", `attach huérfano desprendido (tab ${t.tabId}) al renacer el SW`);
-      badge("", null, chrome.runtime.getManifest().action.default_title);
+      badge("", null, msg("actionTitle"));
       sendToContent(t.tabId, null, { tc: "stop-monitor" });
     }).catch(() => { /* el attach no era nuestro */ });
   }
@@ -236,7 +241,7 @@ async function withOffscreen(fn) {
       offscreenCreating ??= chrome.offscreen.createDocument({
         url: "offscreen.html",
         reasons: ["CLIPBOARD"],
-        justification: "Leer el texto del portapapeles para tipearlo en el campo enfocado",
+        justification: msg("offscreenReason"),
       }).finally(() => { offscreenCreating = null; });
       await offscreenCreating;
     }
@@ -333,14 +338,14 @@ async function runSession() {
 
   // --- Regla B: solo la pestaña activa, visible y con foco de ventana. ---
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (!tab || !tab.id) return badge("ERR", COLOR_ERR, "TypeClip: no hay pestaña activa");
+  if (!tab || !tab.id) return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errNoTab"));
   if (!tab.url) {
     session = null;
-    return badge("ERR", COLOR_ERR, "TypeClip: la pestaña no expone URL; no se puede operar");
+    return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errNoUrl"));
   }
   const win = await chrome.windows.get(tab.windowId);
-  if (!tab.active) return badge("ERR", COLOR_ERR, "TypeClip: la pestaña no está activa");
-  if (!win.focused) return badge("ERR", COLOR_ERR, "TypeClip: la ventana no tiene el foco — hacé click en la página y volvé a invocar");
+  if (!tab.active) return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errTabInactive"));
+  if (!win.focused) return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errWinUnfocused"));
 
   session = { tabId: tab.id, frameId: null, method: null, cancel: false, attached: false };
 
@@ -350,13 +355,13 @@ async function runSession() {
     frames = await injectContentScript(tab.id);
   } catch (e) {
     session = null;
-    return badge("ERR", COLOR_ERR, "TypeClip: esta página no permite inyectar scripts (chrome://, Web Store…) — nada que tipear");
+    return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errInject"));
   }
   const editableFrame = frames.find((f) => f && f.ok);
   if (!editableFrame) {
     session = null;
     const why = frames[0] && frames[0].reason;
-    return badge("ERR", COLOR_ERR, "TypeClip: el elemento con foco no es editable (" + (why || "input/textarea/contenteditable") + "). Hacé click en el campo y reintentá.");
+    return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errNotEditable", [why || "input/textarea/contenteditable"]));
   }
   session.frameId = editableFrame.frameId;
 
@@ -364,11 +369,11 @@ async function runSession() {
   const clip = await readClipboardViaOffscreen();
   if (!clip.ok) {
     session = null;
-    return badge("ERR", COLOR_ERR, "TypeClip: no se pudo leer el portapapeles (" + clip.error + ")");
+    return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errClipboard", [clip.error]));
   }
   if (!clip.text || !clip.text.trim()) {
     session = null;
-    return badge("ERR", COLOR_ERR, "TypeClip: el portapapeles está vacío");
+    return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errEmpty"));
   }
   const clipboardText = clip.text; // vive solo en memoria; nunca se loguea ni se guarda
 
@@ -393,7 +398,7 @@ async function runSession() {
 
   // --- 3) Armar el plan y arrancar los monitores del content script. ---
   const plan = buildPlan(textToType, settings);
-  if (!plan.length) { session = null; return badge("ERR", COLOR_ERR, "TypeClip: nada tipeable en el portapapeles"); }
+  if (!plan.length) { session = null; return badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("errNothing")); }
   const frameId = editableFrame.frameId; // capturado: cancel() puede anular session
   await sendToContent(tab.id, frameId, { tc: "start-monitor" });
   if (!session) { // cancel() llegó durante el arranque: no dejar el monitor vivo
@@ -423,11 +428,11 @@ async function runSession() {
   let outcome;
   if (attached) {
     session.method = "CDP";
-    badge("0%", COLOR_RUN, "TypeClip: tipeando · método CDP (chrome.debugger) · Esc o Alt+Shift+V para cancelar");
+    badge("0%", COLOR_RUN, TOOLTIP_PREFIX + msg("runCdp"));
     outcome = await playCdp(plan, human);
   } else {
     session.method = "JS";
-    badge("0%", COLOR_RUN, "TypeClip: tipeando · método eventos JS (isTrusted=false; ver README) · Esc para cancelar");
+    badge("0%", COLOR_RUN, TOOLTIP_PREFIX + msg("runJs"));
     outcome = await playViaContentScript(plan);
   }
 
@@ -453,9 +458,9 @@ async function runSession() {
     return; // cancel() ya hizo detach + badge limpio
   }
   if (outcome.status === "aborted") {
-    badge("ERR", COLOR_ERR, "TypeClip: abortado — " + outcome.reason);
+    badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + msg("aborted", [outcome.reason]));
     session = null;
-    setTimeout(() => badge("", null, "TypeClip — tipear el portapapeles (Alt+Shift+V)"), 6000);
+    setTimeout(() => badge("", null, msg("actionTitle")), 6000);
     return;
   }
 
@@ -476,24 +481,23 @@ async function runSession() {
   const grew = finalRead.ok && !!baseNorm && nGot > nBase && got.length >= baseNorm.length;
   if (finalRead.ok && !baseNorm && expected === got) {
     // Línea base vacía: el campo debe quedar exactamente con el portapapeles.
-    badge("OK", COLOR_OK, "TypeClip: listo · método " + methodLabel + " · el campo coincide con el portapapeles");
+    badge("OK", COLOR_OK, TOOLTIP_PREFIX + msg("okMatch", [methodLabel]));
   } else if (grew) {
     // El campo ya tenía texto: el tipeo quedó insertado adentro (el caret pudo
     // estar en cualquier posición). Exige que las ocurrencias hayan crecido.
-    badge("OK", COLOR_OK, "TypeClip: listo · método " + methodLabel + " · el tipeo quedó insertado (el campo ya tenía texto)");
+    badge("OK", COLOR_OK, TOOLTIP_PREFIX + msg("okInserted", [methodLabel]));
   } else if (finalRead.ok) {
     badge("DIF", COLOR_WARN,
-      "TypeClip: terminó (método " + methodLabel + ") pero el campo NO coincide con el portapapeles" +
-      detailDiff(expected, got) + ". ¿Typeahead de @menciones, autocorrección o maxLength?");
+      TOOLTIP_PREFIX + msg("dif", [methodLabel, detailDiff(expected, got)]));
   } else {
-    badge("OK?", COLOR_WARN, "TypeClip: terminó (método " + methodLabel + "); no se pudo leer el campo para verificar (" + finalRead.error + ")");
+    badge("OK?", COLOR_WARN, TOOLTIP_PREFIX + msg("okUnverified", [methodLabel, finalRead.error]));
   }
 }
 
 function detailDiff(expected, got) {
   let i = 0;
   while (i < expected.length && i < got.length && expected[i] === got[i]) i++;
-  return ` (coinciden ${i} caracteres; esperado ${expected.length}, el campo tiene ${got.length})`;
+  return msg("difDetail", [i, expected.length, got.length]);
 }
 
 function normalizeForCompare(t) {
@@ -711,7 +715,7 @@ async function cancel(reason) {
   }
   sendToContent(s.tabId, s.frameId, { tc: "stop-type" });
   sendToContent(s.tabId, s.frameId, { tc: "stop-monitor" });
-  badge("", null, "TypeClip — tipear el portapapeles (Alt+Shift+V)"); // limpia el badge
+  badge("", null, msg("actionTitle")); // limpia el badge
   console.info("TypeClip: sesión cancelada (" + reason + ")");
 }
 
@@ -728,13 +732,13 @@ async function abortSession(reason) {
   }
   sendToContent(s.tabId, s.frameId, { tc: "stop-type" });
   sendToContent(s.tabId, s.frameId, { tc: "stop-monitor" });
-  badge("ERR", COLOR_ERR, "TypeClip: " + reason);
+  badge("ERR", COLOR_ERR, TOOLTIP_PREFIX + reason);
 }
 
 // El usuario cerró el infobar "Chrome está siendo depurado" (o la pestaña se cerró).
 chrome.debugger.onDetach.addListener(async (source) => {
   if (session && source.tabId === session.tabId) {
-    await abortSession("el depurador se desprendió (¿cerraste el infobar o la pestaña?)");
+    await abortSession(msg("reasonDetach"));
   }
 });
 
@@ -750,22 +754,22 @@ function onFocusChanged(windowId) {
   // WINDOW_ID_NONE = ninguna ventana de Chrome tiene el foco (el usuario se
   // fue a otra app). Si el foco cayó en otra ventana, tampoco seguimos.
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    abortSession("la ventana perdió el foco");
+    abortSession(msg("reasonFocus"));
     return;
   }
   chrome.tabs.get(session.tabId, (t) => {
-    if (session && t && t.windowId !== windowId) abortSession("la ventana perdió el foco");
+    if (session && t && t.windowId !== windowId) abortSession(msg("reasonFocus"));
   });
 }
 function onTabActivated(activeInfo) {
-  if (session && activeInfo.tabId !== session.tabId) abortSession("cambiaste de pestaña");
+  if (session && activeInfo.tabId !== session.tabId) abortSession(msg("reasonTab"));
 }
 function onTabRemoved(tabId) {
   if (session && tabId === session.tabId) {
     session = null;
     stopGlobalMonitors();
     stopKeepalive();
-    badge("", null, "TypeClip");
+    badge("", null, msg("extName"));
   }
 }
 function startGlobalMonitors() {
@@ -794,7 +798,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       if (session && sender.tab?.id === session.tabId) cancel("Esc");
       break;
     case "editable-changed": // cambió document.activeElement a mitad del tipeo
-      if (session && sender.tab?.id === session.tabId) abortSession("el foco del campo cambió a mitad del tipeo");
+      if (session && sender.tab?.id === session.tabId) abortSession(msg("reasonField"));
       break;
     case "progress": // progreso del fallback JS (también mantiene vivo el SW)
       if (session && sender.tab?.id === session.tabId) {

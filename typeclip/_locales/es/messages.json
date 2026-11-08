@@ -1,0 +1,135 @@
+{
+  "extName": {
+    "message": "TypeClip"
+  },
+  "extDesc": {
+    "message": "Lee el portapapeles y lo tipea caracter a caracter (eventos de teclado reales) en el campo con foco."
+  },
+  "actionTitle": {
+    "message": "TypeClip — tipear el portapapeles (Alt+Shift+V)"
+  },
+  "cmdDesc": {
+    "message": "Tipear el contenido del portapapeles en el campo enfocado"
+  },
+  "errNoTab": {
+    "message": "no hay pestaña activa"
+  },
+  "errNoUrl": {
+    "message": "la pestaña no expone URL; no se puede operar"
+  },
+  "errTabInactive": {
+    "message": "la pestaña no está activa"
+  },
+  "errWinUnfocused": {
+    "message": "la ventana no tiene el foco — hacé click en la página y volvé a invocar"
+  },
+  "errInject": {
+    "message": "esta página no permite inyectar scripts (chrome://, Web Store…) — nada que tipear"
+  },
+  "errNotEditable": {
+    "message": "el elemento con foco no es editable ($WHY$). Hacé click en el campo y reintentá.",
+    "placeholders": {
+      "why": {
+        "content": "$1"
+      }
+    }
+  },
+  "errClipboard": {
+    "message": "no se pudo leer el portapapeles ($ERR$)",
+    "placeholders": {
+      "err": {
+        "content": "$1"
+      }
+    }
+  },
+  "errEmpty": {
+    "message": "el portapapeles está vacío"
+  },
+  "errNothing": {
+    "message": "nada tipeable en el portapapeles"
+  },
+  "runCdp": {
+    "message": "tipeando · método CDP (chrome.debugger) · Esc o Alt+Shift+V para cancelar"
+  },
+  "runJs": {
+    "message": "tipeando · método eventos JS (isTrusted=false; ver README) · Esc para cancelar"
+  },
+  "aborted": {
+    "message": "abortado — $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "okMatch": {
+    "message": "listo · método $METHOD$ · el campo coincide con el portapapeles",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      }
+    }
+  },
+  "okInserted": {
+    "message": "listo · método $METHOD$ · el tipeo quedó insertado (el campo ya tenía texto)",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      }
+    }
+  },
+  "dif": {
+    "message": "terminó (método $METHOD$) pero el campo NO coincide con el portapapeles$DETAIL$. ¿Typeahead de @menciones, autocorrección o maxLength?",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      },
+      "detail": {
+        "content": "$2"
+      }
+    }
+  },
+  "okUnverified": {
+    "message": "terminó (método $METHOD$); no se pudo leer el campo para verificar ($ERR$)",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      },
+      "err": {
+        "content": "$2"
+      }
+    }
+  },
+  "reasonDetach": {
+    "message": "el depurador se desprendió (¿cerraste el infobar o la pestaña?)"
+  },
+  "reasonFocus": {
+    "message": "la ventana perdió el foco"
+  },
+  "reasonTab": {
+    "message": "cambiaste de pestaña"
+  },
+  "reasonField": {
+    "message": "el foco del campo cambió a mitad del tipeo"
+  },
+  "difDetail": {
+    "message": " (coinciden $MATCH$ caracteres; esperado $EXPECTED$, el campo tiene $GOT$)",
+    "placeholders": {
+      "match": {
+        "content": "$1"
+      },
+      "expected": {
+        "content": "$2"
+      },
+      "got": {
+        "content": "$3"
+      }
+    }
+  },
+  "whyNotEditable": {
+    "message": "el foco no está en un input/textarea/contenteditable"
+  },
+  "offscreenReason": {
+    "message": "Leer el texto del portapapeles para tipearlo en el campo enfocado"
+  }
+}

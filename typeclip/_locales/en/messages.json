@@ -1,0 +1,135 @@
+{
+  "extName": {
+    "message": "TypeClip"
+  },
+  "extDesc": {
+    "message": "Reads the clipboard and types it into the focused field key by key, with real keyboard events."
+  },
+  "actionTitle": {
+    "message": "TypeClip — type the clipboard (Alt+Shift+V)"
+  },
+  "cmdDesc": {
+    "message": "Type the clipboard contents into the focused field"
+  },
+  "errNoTab": {
+    "message": "no active tab"
+  },
+  "errNoUrl": {
+    "message": "the tab doesn't expose its URL; can't operate"
+  },
+  "errTabInactive": {
+    "message": "the tab is not active"
+  },
+  "errWinUnfocused": {
+    "message": "the window doesn't have focus — click the page and run it again"
+  },
+  "errInject": {
+    "message": "this page doesn't allow script injection (chrome://, Web Store…) — nothing to type"
+  },
+  "errNotEditable": {
+    "message": "the focused element is not editable ($WHY$). Click into the field and retry.",
+    "placeholders": {
+      "why": {
+        "content": "$1"
+      }
+    }
+  },
+  "errClipboard": {
+    "message": "couldn't read the clipboard ($ERR$)",
+    "placeholders": {
+      "err": {
+        "content": "$1"
+      }
+    }
+  },
+  "errEmpty": {
+    "message": "the clipboard is empty"
+  },
+  "errNothing": {
+    "message": "nothing typeable in the clipboard"
+  },
+  "runCdp": {
+    "message": "typing · CDP method (chrome.debugger) · Esc or Alt+Shift+V to cancel"
+  },
+  "runJs": {
+    "message": "typing · JS events method (isTrusted=false; see README) · Esc to cancel"
+  },
+  "aborted": {
+    "message": "aborted — $REASON$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "okMatch": {
+    "message": "done · $METHOD$ method · the field matches the clipboard",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      }
+    }
+  },
+  "okInserted": {
+    "message": "done · $METHOD$ method · the text was inserted (the field already had text)",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      }
+    }
+  },
+  "dif": {
+    "message": "finished ($METHOD$ method) but the field does NOT match the clipboard$DETAIL$. @mention typeahead, autocorrect or maxLength?",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      },
+      "detail": {
+        "content": "$2"
+      }
+    }
+  },
+  "okUnverified": {
+    "message": "finished ($METHOD$ method); couldn't read the field to verify ($ERR$)",
+    "placeholders": {
+      "method": {
+        "content": "$1"
+      },
+      "err": {
+        "content": "$2"
+      }
+    }
+  },
+  "reasonDetach": {
+    "message": "the debugger was detached (did you close the infobar or the tab?)"
+  },
+  "reasonFocus": {
+    "message": "the window lost focus"
+  },
+  "reasonTab": {
+    "message": "you switched tabs"
+  },
+  "reasonField": {
+    "message": "the field focus changed mid-typing"
+  },
+  "difDetail": {
+    "message": " (match $MATCH$ chars; expected $EXPECTED$, the field has $GOT$)",
+    "placeholders": {
+      "match": {
+        "content": "$1"
+      },
+      "expected": {
+        "content": "$2"
+      },
+      "got": {
+        "content": "$3"
+      }
+    }
+  },
+  "whyNotEditable": {
+    "message": "the focus is not on an input/textarea/contenteditable"
+  },
+  "offscreenReason": {
+    "message": "Read the clipboard text to type it into the focused field"
+  }
+}
