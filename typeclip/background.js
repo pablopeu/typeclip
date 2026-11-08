@@ -206,6 +206,26 @@ const COLOR_RUN = "#2563eb", COLOR_OK = "#16a34a", COLOR_ERR = "#dc2626", COLOR_
 let session = null; // {tabId, frameId, method, cancel:false, attached:false, end:resolve...}
 
 // ---------------------------------------------------------------------------
+// Limpieza de arranque: si Chrome terminó el service worker a mitad de una
+// sesión, el attach del debugger queda HUÉRFANO (el cartel amarillo no se va
+// nunca), el badge queda clavado en un porcentaje y el content script sigue
+// monitoreando/tragando Esc. Al renacer el SW: desprender lo nuestro y limpiar.
+// chrome.debugger.detach solo afecta el attach DE ESTA extensión, así que
+// probarlo contra tabs donde el "attached" es de otro (DevTools del usuario,
+// otro DevTools client) falla silenciosamente y no toca nada ajeno.
+// ---------------------------------------------------------------------------
+chrome.debugger.getTargets().then((targets) => {
+  const orphans = targets.filter((t) => t.attached && typeof t.tabId === "number");
+  for (const t of orphans) {
+    chrome.debugger.detach({ tabId: t.tabId }).then(() => {
+      dbglog("stale", `attach huérfano desprendido (tab ${t.tabId}) al renacer el SW`);
+      badge("", null, chrome.runtime.getManifest().action.default_title);
+      sendToContent(t.tabId, null, { tc: "stop-monitor" });
+    }).catch(() => { /* el attach no era nuestro */ });
+  }
+}).catch(() => { /* sin permiso para listar: no hacer nada */ });
+
+// ---------------------------------------------------------------------------
 // Clipboard vía offscreen document (única forma de leerlo desde el SW de MV3)
 // ---------------------------------------------------------------------------
 
@@ -274,6 +294,18 @@ function sendToContent(tabId, frameId, msg) {
       resolve(resp ?? { ok: false, error: "sin respuesta" });
     });
   });
+}
+
+// Lectura del campo con timeout: un renderer trabado no contesta mensajes
+// tampoco — sin esto, la sonda de caracteres especiales quedaría colgada
+// esperando una respuesta que no llega nunca. Al vencer, se trata como
+// "no insertado" y el flujo sigue (el próximo cdp() vence su propio timeout
+// y aborta la sesión con detach).
+function readWithTimeout(tabId, frameId, ms) {
+  return Promise.race([
+    sendToContent(tabId, frameId, { tc: "read" }),
+    new Promise((resolve) => setTimeout(() => resolve({ ok: false, error: "read timeout" }), ms)),
+  ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -401,7 +433,9 @@ async function runSession() {
 
   stopGlobalMonitors();
   stopKeepalive();
-  dbglog("outcome", outcome.status + " " + (outcome.method || "") + " session=" + (session ? "viva" : "null"));
+  dbglog("outcome", outcome.status + " " + (outcome.method || "") +
+    (outcome.reason ? " · " + outcome.reason : "") +
+    " session=" + (session ? "viva" : "null"));
   // Detach del debugger apenas termina el tipeo (el infobar debe irse ya).
   // Marcar attached=false ANTES: el detach propio no debe disparar el onDetach
   // que trataría la sesión como abortada.
@@ -429,13 +463,23 @@ async function runSession() {
   await sendToContent(s.tabId, s.frameId, { tc: "stop-monitor" });
   session = null;
 
+  // Verificación contra la línea base (texto que el campo YA tenía antes del
+  // tipeo). El OK exige evidencia de que el tipeo quedó: que "expected" aparezca
+  // MÁS veces que en la línea base. Con "includes" a secas, un campo precargado
+  // con exactamente el texto del portapapeles daba un OK falso aunque el tipeo
+  // no hubiera entrado nada.
   const expected = normalizeForCompare(textToType);
   const got = finalRead.ok ? normalizeForCompare(finalRead.text ?? "") : "";
-  if (finalRead.ok && expected === got) {
+  const baseNorm = normalizeForCompare(baseline);
+  const nGot = countOccurrences(got, expected);
+  const nBase = countOccurrences(baseNorm, expected);
+  const grew = finalRead.ok && !!baseNorm && nGot > nBase && got.length >= baseNorm.length;
+  if (finalRead.ok && !baseNorm && expected === got) {
+    // Línea base vacía: el campo debe quedar exactamente con el portapapeles.
     badge("OK", COLOR_OK, "TypeClip: listo · método " + methodLabel + " · el campo coincide con el portapapeles");
-  } else if (finalRead.ok && baseline.trim() && got.includes(expected)) {
+  } else if (grew) {
     // El campo ya tenía texto: el tipeo quedó insertado adentro (el caret pudo
-    // estar en cualquier posición). "Contains" y no igualdad exacta.
+    // estar en cualquier posición). Exige que las ocurrencias hayan crecido.
     badge("OK", COLOR_OK, "TypeClip: listo · método " + methodLabel + " · el tipeo quedó insertado (el campo ya tenía texto)");
   } else if (finalRead.ok) {
     badge("DIF", COLOR_WARN,
@@ -461,14 +505,46 @@ function normalizeForCompare(t) {
     .trim();
 }
 
+// Ocurrencias NO solapadas de needle en haystack (para la verificación contra
+// línea base: el tipeo cuenta como hecho solo si "expected" apareció más veces
+// de las que ya había antes de tipear).
+function countOccurrences(haystack, needle) {
+  if (!needle) return 0;
+  let n = 0;
+  let i = haystack.indexOf(needle);
+  while (i !== -1) {
+    n++;
+    i = haystack.indexOf(needle, i + needle.length);
+  }
+  return n;
+}
+
 // ---------------------------------------------------------------------------
 // Jugador principal: chrome.debugger (CDP). Cada sendCommand resetea el timer
 // de inactividad del service worker (más el keepalive de abajo).
 // ---------------------------------------------------------------------------
 
 function cdp(tabId, method, params) {
+  // Timeout de seguridad: si el renderer de la pestaña se trabó (medido: un
+  // editor que muta el DOM dentro de su handler de input a mitad de un commit
+  // IME puede dejar un Input.dispatchKeyEvent sin respuesta PARA SIEMPRE —
+  // sesión colgada con el cartel amarillo puesto), abortamos y desprendemos.
+  // El RTT normal de un comando es ~80 ms; 15 s es margen de sobra.
+  // IMPORTANTE: el timer se CANCELA cuando el comando responde. Con
+  // Promise.race pelado, cada comando exitoso dejaba un setTimeout vivo que
+  // 15 s después rechazaba una promise ya resuelta y ensuciaba el log (en una
+  // sesión de 2000 caracteres, ~8000 timers basura disparando a la vez).
   return new Promise((resolve, reject) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      reject(new Error("timeout " + method));
+    }, 15000);
     chrome.debugger.sendCommand({ tabId }, method, params || {}, (result) => {
+      if (done) return; // ya expiró el timeout; la respuesta tardía se ignora
+      done = true;
+      clearTimeout(timer);
       const err = chrome.runtime.lastError;
       if (err) reject(new Error(err.message)); else resolve(result);
     });
@@ -556,14 +632,14 @@ async function playCdp(plan, delayFn) {
           const needProbe = step.special && !specialVerified.has(step.text);
           let len0 = -1;
           if (needProbe) {
-            const r0 = await sendToContent(tabId, frameId, { tc: "read" });
+            const r0 = await readWithTimeout(tabId, frameId, 2000);
             if (r0.ok) len0 = Array.from(r0.text || "").length;
           }
           await playCharKey(step);
           if (needProbe) {
             let inserted = false;
             for (let waited = 0; waited <= 150 && !inserted; waited += 25) {
-              const r = await sendToContent(tabId, frameId, { tc: "read" });
+              const r = await readWithTimeout(tabId, frameId, 2000);
               if (r.ok && Array.from(r.text || "").length > len0) inserted = true;
               else await sleep(25);
             }
@@ -597,8 +673,7 @@ async function playCdp(plan, delayFn) {
       lastPct = pct;
       chrome.action.setBadgeText({ text: pct + "%" });
     }
-    if ((i + 1) % 200 === 0) dbglog("plan@" + (i + 1), pct + "%");
-  }
+    if ((i + 1) % 200 === 0) dbglog("plan@" + (i + 1), pct + "%");  }
   return { status: "done", method: "CDP" };
 }
 

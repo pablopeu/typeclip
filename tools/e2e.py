@@ -174,6 +174,46 @@ def sw_last_outcome(sw):
     return "sin outcome"
 
 
+def ring_snapshot(sw):
+    return sw.evaluate("() => globalThis.__typeclipDbg ? globalThis.__typeclipDbg() : []")
+
+
+def ring_since(snapshot, now):
+    """Líneas del ring posteriores al snapshot. Tolera el recorte a 300 líneas
+    (splice desde el inicio): si la cola del snapshot ya no coincide, se
+    descuenta por contador en vez de por posición."""
+    if now[:len(snapshot)] == snapshot:
+        return now[len(snapshot):]
+    from collections import Counter
+    pend = Counter(snapshot)
+    out = []
+    for ln in now:
+        if pend[ln] > 0:
+            pend[ln] -= 1
+        else:
+            out.append(ln)
+    return out
+
+
+def wait_session_end(sw, snapshot, timeout):
+    """Espera el desenlace de la sesión NUEVA (la línea 'invoke (nueva sesión)'
+    posterior al snapshot y su primer outcome/abort/cancel posterior).
+    Es inmune a badges viejos y a líneas de sesiones anteriores: el criterio
+    es la SECUENCIA del ring, no el reloj ni el badge persistente."""
+    end = time.time() + timeout
+    while time.time() < end:
+        new = ring_since(snapshot, ring_snapshot(sw))
+        anchor = next((k for k, ln in enumerate(new) if "invoke (nueva" in ln), None)
+        if anchor is not None:
+            for ln in new[anchor + 1:]:
+                if "outcome" in ln or "abort" in ln or "cancel" in ln:
+                    return ln, new[anchor:]
+            # sesión nueva arrancó pero aún no terminó: si el SW murió y renació
+            # con otro ring, tampoco habrá más líneas — seguir esperando.
+        time.sleep(0.25)
+    return None, ring_since(snapshot, ring_snapshot(sw))
+
+
 def main():
     import os
     only = os.environ.get("ONLY")  # p.ej. ONLY=E corre solo ese bloque de subtests
@@ -223,326 +263,433 @@ def main():
         PAYLOADS["multiline"] = page.evaluate("() => window.__payloads.multiline")
         PAYLOADS["especiales"] = page.evaluate("() => window.__payloads.especiales")
 
-        # ---------------- A) input + criterio 6 (eventos trusted) ----------------
-        set_settings(sw)
-        prep(page, "#inp", "simple")
-        invoke(sw)
-        ok = wait_value(page, "#inp", PAYLOADS["simple"], 30000)
-        report("A) input de formulario — texto completo", ok,
-               "" if ok else f"quedó: {field_text(page, '#inp')!r}")
-        v = run_verify(page)
-        report("A) criterio 6 — eventos trusted sin paste", "TODO OK" in v, verify_detail(v))
-        b, tip = badge(sw), badge_tooltip(sw)
-        report("A) badge OK + método CDP", b == "OK" and "CDP" in tip, f"badge={b!r} tip={tip[:70]!r}")
+        if active("A"):
+            # ---------------- A) input + criterio 6 (eventos trusted) ----------------
+            set_settings(sw)
+            prep(page, "#inp", "simple")
+            invoke(sw)
+            ok = wait_value(page, "#inp", PAYLOADS["simple"], 30000)
+            report("A) input de formulario — texto completo", ok,
+                   "" if ok else f"quedó: {field_text(page, '#inp')!r}")
+            v = run_verify(page)
+            report("A) criterio 6 — eventos trusted sin paste", "TODO OK" in v, verify_detail(v))
+            b, tip = badge(sw), badge_tooltip(sw)
+            report("A) badge OK + método CDP", b == "OK" and "CDP" in tip, f"badge={b!r} tip={tip[:70]!r}")
 
-        # ---------------- B) textarea con 280+ caracteres especiales ------------
-        prep(page, "#ta", "x280")
-        invoke(sw)
-        ok = wait_value(page, "#ta", PAYLOADS["x280"], 90000)
-        report("B) textarea 280+ (tildes ñ ¿¡ emoji \\n @)", ok,
-               "" if ok else f"quedó: {field_text(page, '#ta')[:100]!r}…")
-        v = run_verify(page)
-        report("B) criterio 6 — diagnósticos", "TODO OK" in v, verify_detail(v))
+        if active("B"):
+            # ---------------- B) textarea con 280+ caracteres especiales ------------
+            prep(page, "#ta", "x280")
+            invoke(sw)
+            ok = wait_value(page, "#ta", PAYLOADS["x280"], 90000)
+            report("B) textarea 280+ (tildes ñ ¿¡ emoji \\n @)", ok,
+                   "" if ok else f"quedó: {field_text(page, '#ta')[:100]!r}…")
+            v = run_verify(page)
+            report("B) criterio 6 — diagnósticos", "TODO OK" in v, verify_detail(v))
 
-        # ---------------- C) contenteditable ------------------------------------
-        prep(page, "#ce", "x280")
-        invoke(sw)
-        got = wait_stable(page, "#ce", 90000)
-        ok = norm(got) == norm(PAYLOADS["x280"])
-        report("C) contenteditable 280+", ok, "" if ok else f"quedó: {got[:100]!r}…")
-        v = run_verify(page)
-        report("C) criterio 6 — diagnósticos", "TODO OK" in v, verify_detail(v))
+        if active("C"):
+            # ---------------- C) contenteditable ------------------------------------
+            prep(page, "#ce", "x280")
+            invoke(sw)
+            got = wait_stable(page, "#ce", 90000)
+            ok = norm(got) == norm(PAYLOADS["x280"])
+            report("C) contenteditable 280+", ok, "" if ok else f"quedó: {got[:100]!r}…")
+            v = run_verify(page)
+            report("C) criterio 6 — diagnósticos", "TODO OK" in v, verify_detail(v))
 
-        # ---------------- D) composer fake tipo X (mención come Enter) ---------
-        prep(page, "#xce", "x280")
-        invoke(sw)
-        got = wait_stable(page, "#xce", 90000)
-        time.sleep(1)
-        b, tip = badge(sw), badge_tooltip(sw)
-        eaten = page.eval_on_selector("#xce", "el => el.dataset.mentionEaten || '0'")
-        report("D) X fake: el typeahead se comió el Enter", str(eaten) != "0", f"mentionEaten={eaten}")
-        report("D) X fake: badge DIF con tooltip explicativo", b == "DIF" and "NO coincide" in tip,
-               f"badge={b!r} tip={tip[:80]!r}")
+        if active("D"):
+            # ---------------- D) composer fake tipo X (mención come Enter) ---------
+            prep(page, "#xce", "x280")
+            invoke(sw)
+            got = wait_stable(page, "#xce", 90000)
+            time.sleep(1)
+            b, tip = badge(sw), badge_tooltip(sw)
+            eaten = page.eval_on_selector("#xce", "el => el.dataset.mentionEaten || '0'")
+            report("D) X fake: el typeahead se comió el Enter", str(eaten) != "0", f"mentionEaten={eaten}")
+            report("D) X fake: badge DIF con tooltip explicativo", b == "DIF" and "NO coincide" in tip,
+                   f"badge={b!r} tip={tip[:80]!r}")
 
-        # ---------------- E) 2000+ caracteres (ciclo de vida del SW) -----------
-        set_settings(sw, wpm=250, jitter=10, pauses=False, thinkPct=0)
-        prep(page, "#ta", "largo")
-        t0 = time.time()
-        invoke(sw)
-        ok = wait_value(page, "#ta", PAYLOADS["largo"], 600000, interval=1.5)
-        dur = time.time() - t0
-        b = badge(sw)
-        det = f"{len(PAYLOADS['largo'])} chars en {dur:.0f}s badge={b!r} · {sw_last_outcome(sw)}"
-        if not ok:
-            det += " | " + first_diff(norm(field_text(page, "#ta")), norm(PAYLOADS["largo"]))
-            dump_evidence(page, sw, "e")
-        report("E) 2000+ caracteres de corrido", ok and b == "OK", det)
-        report("E) sin corte por ciclo de vida del SW", "done CDP" in sw_last_outcome(sw),
-               sw_last_outcome(sw))
+        if active("E"):
+            # ---------------- E) 2000+ caracteres (ciclo de vida del SW) -----------
+            set_settings(sw, wpm=250, jitter=10, pauses=False, thinkPct=0)
+            prep(page, "#ta", "largo")
+            t0 = time.time()
+            invoke(sw)
+            ok = wait_value(page, "#ta", PAYLOADS["largo"], 600000, interval=1.5)
+            dur = time.time() - t0
+            b = badge(sw)
+            det = f"{len(PAYLOADS['largo'])} chars en {dur:.0f}s badge={b!r} · {sw_last_outcome(sw)}"
+            if not ok:
+                det += " | " + first_diff(norm(field_text(page, "#ta")), norm(PAYLOADS["largo"]))
+                dump_evidence(page, sw, "e")
+            report("E) 2000+ caracteres de corrido", ok and b == "OK", det)
+            report("E) sin corte por ciclo de vida del SW", "done CDP" in sw_last_outcome(sw),
+                   sw_last_outcome(sw))
 
-        # ---------------- F) cancelación ----------------------------------------
-        # NOTA CLAVE del arnés: mientras chrome.debugger está adjunto, TODO el
-        # tráfico CDP de Playwright hacia esa pestaña se encola detrás de los
-        # comandos del debugger (los eval no se ejecutan hasta el detach, y un
-        # page.keyboard.press("Escape") llegaría DESPUÉS del tipeo). Para probar
-        # el Esc REAL se despacha un keyDown/keyUp de Escape CONFIABLE a través
-        # de la PROPIA sesión de debugger de la extensión (sw.evaluate →
-        # chrome.debugger.sendCommand): el comando se intercala dentro del
-        # pipeline del tipeo, la página recibe el keydown trusted, el listener
-        # del content script manda {tc:'esc'} con el sender correcto y el guard
-        # del SW (sender.tab.id === session.tabId) lo acepta. Camino 100% real
-        # desde el keydown en adelante.
-        ESC_KEYS = """() => chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([t]) =>
-            Promise.all([
-              chrome.debugger.sendCommand({ tabId: t.id }, 'Input.dispatchKeyEvent',
-                { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }),
-              chrome.debugger.sendCommand({ tabId: t.id }, 'Input.dispatchKeyEvent',
-                { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }),
-            ])).catch(e => 'esc-keys (ok si canceló primero): ' + e.message)"""
+        if active("F"):
+            # ---------------- F) cancelación ----------------------------------------
+            # NOTA CLAVE del arnés: mientras chrome.debugger está adjunto, TODO el
+            # tráfico CDP de Playwright hacia esa pestaña se encola detrás de los
+            # comandos del debugger (los eval no se ejecutan hasta el detach, y un
+            # page.keyboard.press("Escape") llegaría DESPUÉS del tipeo). Para probar
+            # el Esc REAL se despacha un keyDown/keyUp de Escape CONFIABLE a través
+            # de la PROPIA sesión de debugger de la extensión (sw.evaluate →
+            # chrome.debugger.sendCommand): el comando se intercala dentro del
+            # pipeline del tipeo, la página recibe el keydown trusted, el listener
+            # del content script manda {tc:'esc'} con el sender correcto y el guard
+            # del SW (sender.tab.id === session.tabId) lo acepta. Camino 100% real
+            # desde el keydown en adelante.
+            ESC_KEYS = """() => chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([t]) =>
+                Promise.all([
+                  chrome.debugger.sendCommand({ tabId: t.id }, 'Input.dispatchKeyEvent',
+                    { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }),
+                  chrome.debugger.sendCommand({ tabId: t.id }, 'Input.dispatchKeyEvent',
+                    { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }),
+                ])).catch(e => 'esc-keys (ok si canceló primero): ' + e.message)"""
 
-        invoke(sw)  # el campo #ta sigue enfocado con contenido largo
-        time.sleep(2.5)
-        sw.evaluate(ESC_KEYS)
-        time.sleep(1.5)
-        # Al cancelar hay detach → los eval a la pestaña se destraban solos.
-        mid = len(field_text(page, "#ta"))
-        seq = []
-        for _ in range(8):
-            seq.append(badge(sw))
+            invoke(sw)  # el campo #ta sigue enfocado con contenido largo
+            time.sleep(2.5)
+            sw.evaluate(ESC_KEYS)
+            time.sleep(1.5)
+            # Al cancelar hay detach → los eval a la pestaña se destraban solos.
+            mid = len(field_text(page, "#ta"))
+            seq = []
+            for _ in range(8):
+                seq.append(badge(sw))
+                time.sleep(0.5)
+            after = len(field_text(page, "#ta"))
+            dbg_f = sw.evaluate("() => globalThis.__typeclipDbg()")
+            ok_f = mid == after and mid > 0 and all(x == "" for x in seq) and any("cancel" in x for x in dbg_f)
+            det = f"mid={mid} after={after} seq={seq}"
+            if not ok_f:
+                det += "\nDBG SW: " + " || ".join(dbg_f[-20:])
+            report("F) cancelación por Esc (keydown trusted vía debugger)", ok_f, det)
+            # El Esc de cancelación debe TRAGARSE (document-captura, preventDefault +
+            # stopImmediatePropagation): si llega al campo, el sitio lo procesa
+            # (p.ej. X abre "guardar borrador"). El contador vive en la página.
+            esc_seen = page.evaluate("() => window.__escSeen || 0")
+            report("F) Esc cancela sin llegar al sitio (tragado)", esc_seen == 0, f"escSeen={esc_seen}")
+
+            # Cancelación por re-invocación del atajo (toggle) — camino invoke().
+            invoke(sw)
+            time.sleep(2.0)
+            invoke(sw)  # toggle → cancel
+            time.sleep(1.5)
+            mid2 = len(field_text(page, "#ta"))
+            seq2 = []
+            for _ in range(6):
+                seq2.append(badge(sw))
+                time.sleep(0.5)
+            after2 = len(field_text(page, "#ta"))
+            dbg_f2 = sw.evaluate("() => globalThis.__typeclipDbg()")
+            ok_f2 = mid2 == after2 and all(x == "" for x in seq2) and "cancelado por el usuario" in " ".join(dbg_f2)
+            report("F) cancelación por re-invocación (toggle)", ok_f2,
+                   f"mid={mid2} after={after2} seq={seq2}")
+            page.bring_to_front()
+            time.sleep(0.3)
+            # Prueba de detach real: un tipeo nuevo debe volver a usar CDP.
+            set_settings(sw)
+            prep(page, "#inp", "simple")
+            invoke(sw)
+            ok = wait_value(page, "#inp", PAYLOADS["simple"], 30000)
+            tip = badge_tooltip(sw)
+            report("F) detach limpio (re-tipeo vía CDP de nuevo)", ok and "CDP" in tip,
+                   f"badge={badge(sw)!r} tip={tip[:70]!r}")
+
+        if active("G"):
+            # ---------------- G) página chrome:// → ERR sin crashear ---------------
+            # Nota: el atajo NO se puede probar con teclado sintético en headless
+            # (los comandos de extensión no disparan), así que se invoca la misma
+            # función que ejecutaría el comando, con la pestaña chrome:// activa.
+            page2 = ctx.new_page()
+            page2.goto("chrome://version", wait_until="load")
+            page2.bring_to_front()
             time.sleep(0.5)
-        after = len(field_text(page, "#ta"))
-        dbg_f = sw.evaluate("() => globalThis.__typeclipDbg()")
-        ok_f = mid == after and mid > 0 and all(x == "" for x in seq) and any("cancel" in x for x in dbg_f)
-        det = f"mid={mid} after={after} seq={seq}"
-        if not ok_f:
-            det += "\nDBG SW: " + " || ".join(dbg_f[-20:])
-        report("F) cancelación por Esc (keydown trusted vía debugger)", ok_f, det)
-        # El Esc de cancelación debe TRAGARSE (document-captura, preventDefault +
-        # stopImmediatePropagation): si llega al campo, el sitio lo procesa
-        # (p.ej. X abre "guardar borrador"). El contador vive en la página.
-        esc_seen = page.evaluate("() => window.__escSeen || 0")
-        report("F) Esc cancela sin llegar al sitio (tragado)", esc_seen == 0, f"escSeen={esc_seen}")
+            invoke(sw)
+            time.sleep(1.5)
+            b = badge(sw)
+            det = f"badge={b!r} tip={badge_tooltip(sw)[:80]!r}"
+            if b != "ERR":
+                det += "\nDBG SW: " + " || ".join(sw.evaluate("() => globalThis.__typeclipDbg()")[-12:])
+            report("G) chrome:// rechazado con ERR", b == "ERR", det)
+            page2.close()
+            page.bring_to_front()
+            time.sleep(0.4)
 
-        # Cancelación por re-invocación del atajo (toggle) — camino invoke().
-        invoke(sw)
-        time.sleep(2.0)
-        invoke(sw)  # toggle → cancel
-        time.sleep(1.5)
-        mid2 = len(field_text(page, "#ta"))
-        seq2 = []
-        for _ in range(6):
-            seq2.append(badge(sw))
+        if active("H"):
+            # ---------------- H) cambio de pestaña a mitad del tipeo ---------------
+            # La activación se hace con chrome.tabs.update DESDE EL SW (nivel browser,
+            # no encolado detrás del debugger de la pestaña): es un cambio de pestaña
+            # REAL que dispara tabs.onActivated → abort.
+            set_settings(sw, wpm=250, pauses=False)
+            prep(page, "#ta", "largo")
+            invoke(sw)
+            time.sleep(2.5)
+            sw.evaluate("""() => chrome.tabs.create({ url: 'about:blank' }).then(t =>
+                chrome.tabs.update(t.id, { active: true }))""")
+            time.sleep(2.5)
+            dbg_h = sw.evaluate("() => globalThis.__typeclipDbg()")
+            b = badge(sw)
+            mid = len(field_text(page, "#ta"))  # el abort detachea → eval destrabado
+            time.sleep(1.5)
+            after = len(field_text(page, "#ta"))
+            det = f"mid={mid} after={after} badge={b!r} tip={badge_tooltip(sw)[:70]!r}"
+            ok_h = mid == after and b == "ERR" and any("pestaña" in x or "abort" in x for x in dbg_h)
+            if not ok_h:
+                det += "\nDBG SW: " + " || ".join(dbg_h[-15:])
+            report("H) abort por cambio de pestaña", ok_h, det)
+            # cerrar la pestaña nueva y volver a la de prueba
+            sw.evaluate("""() => chrome.tabs.query({}).then(ts => {
+                const mine = chrome.runtime.getURL('');
+                return Promise.all(ts.filter(t => (t.url || '').startsWith('about:blank'))
+                  .map(t => chrome.tabs.remove(t.id)));
+              })""")
+            page.bring_to_front()
+            time.sleep(0.4)
+
+        if active("I"):
+            # ---------------- I) typos ON → se corrigen solos ----------------------
+            set_settings(sw, wpm=220, pauses=False, typos=True, typoPct=25)
+            prep(page, "#inp", "simple")
+            invoke(sw)
+            ok = wait_value(page, "#inp", PAYLOADS["simple"], 45000)
+            bs = page.evaluate("() => (window.__events||[]).filter(r => r.type==='keydown' && r.key==='Backspace').length")
+            report("I) typos simulados y corregidos", ok and bs > 0, f"backspaces={bs} texto_final_ok={ok}")
+
+        if active("J"):
+            # ---------------- J) FALLBACK 1 forzado: eventos JS + execCommand -----
+            # Se neutraliza chrome.debugger.attach DENTRO del SW (simula "sin
+            # permiso de debugger / attach falla"). El texto debe entrar igual,
+            # con eventos sintéticos isTrusted=false (documentado en el README).
+            set_settings(sw)
+            sw.evaluate("() => { globalThis.__origAttach = chrome.debugger.attach;"
+                        "  chrome.debugger.attach = async () => { throw new Error('e2e: sin debugger'); }; }")
+            prep(page, "#ta", "x280")
+            invoke(sw)
+            ok = wait_value(page, "#ta", PAYLOADS["x280"], 90000)
+            b, tip = badge(sw), badge_tooltip(sw)
+            report("J) fallback JS — texto completo", ok, "" if ok else f"quedó: {field_text(page, '#ta')[:80]!r}")
+            report("J) fallback JS — badge/método", b == "OK" and "JS" in tip, f"badge={b!r} tip={tip[:70]!r}")
+            # Los keydown/keypress sintéticos son isTrusted=false (documentado); los
+            # `input` que dispara execCommand("insertText") los genera el browser y
+            # son isTrusted=true. Lo que NO puede haber es paste, ni data de >1 cp.
+            untrusted = page.evaluate("() => (window.__events||[]).filter(r => r.type==='keydown' && !r.isTrusted).length")
+            pastes = page.evaluate("() => (window.__events||[]).filter(r => r.type==='paste').length")
+            multi = page.evaluate("() => (window.__events||[])"
+                                  ".filter(r => (r.type==='input'||r.type==='beforeinput')"
+                                  " && r.data !== null && Array.from(r.data).length !== 1).length")
+            report("J) fallback JS — sin paste, 1 cp por evento, keydown sintéticos",
+                   pastes == 0 and multi == 0 and untrusted > 0,
+                   f"paste={pastes} data_multicp={multi} keydown_no_trusted={untrusted}")
+            # Sin beforeinput SINTÉTICO: antes del fix se disparaba uno propio por
+            # caracter (isTrusted=false) y en editores que hacen
+            # preventDefault(beforinput) el caracter entraba DOS veces. Ahora van
+            # solo los nativos que genere execCommand (en textarea dispara input;
+            # el beforeinput del editing engine, donde lo emita).
+            bi_j = page.evaluate("() => (window.__events||[]).filter(r => r.type==='beforeinput').length")
+            bi_synth = page.evaluate("() => (window.__events||[]).filter(r => r.type==='beforeinput' && !r.isTrusted).length")
+            in_j = page.evaluate("() => (window.__events||[]).filter(r => r.type==='input').length")
+            report("J) fallback JS — sin beforeinput sintético",
+                   bi_synth == 0 and in_j > 0 and bi_j <= in_j,
+                   f"beforeinput={bi_j} ({bi_synth} sintéticos) input={in_j}")
+
+        if active("K"):
+            # ---------------- K) FALLBACK 2 forzado: setter nativo -----------------
+            # execCommand anulado EN LA PÁGINA (válido: en la página de la extensión
+            # el content script corre en el mismo mundo) → cada caracter cae al
+            # setter nativo + evento input manual, un code point por vez.
+            page.evaluate("() => { document.execCommand = () => false; }")
+            prep(page, "#ce", "x280")
+            invoke(sw)
+            got = wait_stable(page, "#ce", 90000)
+            # innerText de un contenteditable con pre-wrap agrega un \n final propio
+            # del DOM (por eso la extensión normaliza con trim): comparar sin él.
+            ok = norm(got).rstrip("\n") == norm(PAYLOADS["x280"]).rstrip("\n")
+            b, tip = badge(sw), badge_tooltip(sw)
+            report("K) fallback SET — texto completo (contenteditable)", ok,
+                   "" if ok else f"{first_diff(norm(got), norm(PAYLOADS['x280']))}")
+            report("K) fallback SET — método JS/SET", "SET" in tip, f"badge={b!r} tip={tip[:70]!r}")
+            sw.evaluate("() => { chrome.debugger.attach = globalThis.__origAttach; }")
+            page.reload(wait_until="load")
+            page.wait_for_timeout(500)
+
+        if active("L"):
+            # ---------------- L) input de una línea en <form>: NUNCA submit -------
+            # Regla "nunca hace submit de formularios": un Enter real (CDP keyDown
+            # con text "\r") en un <input> de una línea dispara el default action
+            # de Chrome — submit del form que lo contenga (verificado empíricamente
+            # antes del fix: log = ['kd:Enter', 'change', 'submit']). Con payload
+            # multi-línea la extensión debe colapsar los saltos a UN espacio y no
+            # despachar ningún Enter.
+            set_settings(sw)
+            prep(page, "#inp", "multiline")
+            invoke(sw)
+            expected_ml = re.sub(r"\n+", " ", PAYLOADS["multiline"].replace("\r\n", "\n").replace("\r", "\n"))
+            ok = wait_value(page, "#inp", expected_ml, 60000)
+            submits = page.evaluate("() => (window.__events||[]).filter(r => r.type === 'submit').length")
+            enters = page.evaluate("() => (window.__events||[]).filter(r => r.type === 'keydown' && r.key === 'Enter').length")
+            b, tip = badge(sw), badge_tooltip(sw)
+            det = ("" if ok else f"quedó: {field_text(page, '#inp')!r} · ")
+            det += f"submits={submits} enters={enters} badge={b!r}"
+            report("L) input en form — multi-línea sin submit ni Enter", ok and submits == 0 and enters == 0, det)
+            report("L) input en form — badge OK (saltos→espacios, método CDP)",
+                   b == "OK" and "CDP" in tip, f"badge={b!r} tip={tip[:70]!r}")
+
+        if active("M"):
+            # ---------------- M) timeStamp de los eventos CDP ----------------------
+            # Los keydown/input que genera TypeClip deben tener un e.timeStamp
+            # coherente con performance.now(). Antes del fix se enviaba
+            # timestamp: Date.now() (ms) donde CDP espera segundos-epoch → el
+            # timeStamp del sitio quedaba ~1.7e15 ms a futuro (medido).
+            set_settings(sw)
+            prep(page, "#ta", "simple")
+            page.evaluate("""() => {
+              window.__ts = [];
+              const ta = document.getElementById('ta');
+              for (const t of ['keydown', 'input']) ta.addEventListener(t, (e) => {
+                if (e.isTrusted) window.__ts.push(e.timeStamp - performance.now());
+              }, { capture: true });
+            }""")
+            invoke(sw)
+            ok = wait_value(page, "#ta", PAYLOADS["simple"], 30000)
             time.sleep(0.5)
-        after2 = len(field_text(page, "#ta"))
-        dbg_f2 = sw.evaluate("() => globalThis.__typeclipDbg()")
-        ok_f2 = mid2 == after2 and all(x == "" for x in seq2) and "cancelado por el usuario" in " ".join(dbg_f2)
-        report("F) cancelación por re-invocación (toggle)", ok_f2,
-               f"mid={mid2} after={after2} seq={seq2}")
-        page.bring_to_front()
-        time.sleep(0.3)
-        # Prueba de detach real: un tipeo nuevo debe volver a usar CDP.
-        set_settings(sw)
-        prep(page, "#inp", "simple")
-        invoke(sw)
-        ok = wait_value(page, "#inp", PAYLOADS["simple"], 30000)
-        tip = badge_tooltip(sw)
-        report("F) detach limpio (re-tipeo vía CDP de nuevo)", ok and "CDP" in tip,
-               f"badge={badge(sw)!r} tip={tip[:70]!r}")
+            ts = page.evaluate("() => window.__ts || []")
+            max_d = max((abs(d) for d in ts), default=1e18)
+            report("M) timeStamp coherente (CDP)", ok and len(ts) > 10 and max_d < 1000,
+                   f"{len(ts)} eventos, |delta| máx={max_d:.1f} ms")
 
-        # ---------------- G) página chrome:// → ERR sin crashear ---------------
-        # Nota: el atajo NO se puede probar con teclado sintético en headless
-        # (los comandos de extensión no disparan), así que se invoca la misma
-        # función que ejecutaría el comando, con la pestaña chrome:// activa.
-        page2 = ctx.new_page()
-        page2.goto("chrome://version", wait_until="load")
-        page2.bring_to_front()
-        time.sleep(0.5)
-        invoke(sw)
-        time.sleep(1.5)
-        b = badge(sw)
-        det = f"badge={b!r} tip={badge_tooltip(sw)[:80]!r}"
-        if b != "ERR":
-            det += "\nDBG SW: " + " || ".join(sw.evaluate("() => globalThis.__typeclipDbg()")[-12:])
-        report("G) chrome:// rechazado con ERR", b == "ERR", det)
-        page2.close()
-        page.bring_to_front()
-        time.sleep(0.4)
+        if active("N"):
+            # ---------------- N) campo con texto previo (caret al final) -----------
+            # Línea base: el campo ya tenía texto → el badge tiene que ser OK (el
+            # tipeo quedó insertado) y no DIF eterno, y sin duplicar especiales.
+            prep(page, "#ta", "especiales")
+            page.eval_on_selector("#ta", "el => { el.value = 'antes: '; el.setSelectionRange(7, 7); }")
+            invoke(sw)
+            got = wait_stable(page, "#ta", 60000)
+            time.sleep(1)
+            b, tip = badge(sw), badge_tooltip(sw)
+            exp_n = "antes: " + PAYLOADS["especiales"]
+            report("N) campo con texto previo — inserta completo y sin duplicar",
+                   norm(got) == norm(exp_n) and got.count("ñ") == 3,
+                   "" if norm(got) == norm(exp_n) else f"quedó: {got!r}")
+            report("N) campo con texto previo — badge OK (verifica contra línea base)",
+                   b == "OK" and "ya tenía texto" in tip, f"badge={b!r} tip={tip[:80]!r}")
 
-        # ---------------- H) cambio de pestaña a mitad del tipeo ---------------
-        # La activación se hace con chrome.tabs.update DESDE EL SW (nivel browser,
-        # no encolado detrás del debugger de la pestaña): es un cambio de pestaña
-        # REAL que dispara tabs.onActivated → abort.
-        set_settings(sw, wpm=250, pauses=False)
-        prep(page, "#ta", "largo")
-        invoke(sw)
-        time.sleep(2.5)
-        sw.evaluate("""() => chrome.tabs.create({ url: 'about:blank' }).then(t =>
-            chrome.tabs.update(t.id, { active: true }))""")
-        time.sleep(2.5)
-        dbg_h = sw.evaluate("() => globalThis.__typeclipDbg()")
-        b = badge(sw)
-        mid = len(field_text(page, "#ta"))  # el abort detachea → eval destrabado
-        time.sleep(1.5)
-        after = len(field_text(page, "#ta"))
-        det = f"mid={mid} after={after} badge={b!r} tip={badge_tooltip(sw)[:70]!r}"
-        ok_h = mid == after and b == "ERR" and any("pestaña" in x or "abort" in x for x in dbg_h)
-        if not ok_h:
-            det += "\nDBG SW: " + " || ".join(dbg_h[-15:])
-        report("H) abort por cambio de pestaña", ok_h, det)
-        # cerrar la pestaña nueva y volver a la de prueba
-        sw.evaluate("""() => chrome.tabs.query({}).then(ts => {
-            const mine = chrome.runtime.getURL('');
-            return Promise.all(ts.filter(t => (t.url || '').startsWith('about:blank'))
-              .map(t => chrome.tabs.remove(t.id)));
-          })""")
-        page.bring_to_front()
-        time.sleep(0.4)
+        if active("O"):
+            # ---------------- O) caret en el medio + caracteres especiales ---------
+            # La sonda vieja miraba la COLA del campo (asumía caret al final) y
+            # duplicaba la primera ñ/¿/¡/é. Ahora compara largos antes/después.
+            prep(page, "#ta", "especiales")
+            page.eval_on_selector("#ta", "el => { el.value = 'abcdef'; el.setSelectionRange(3, 3); }")
+            invoke(sw)
+            got = wait_stable(page, "#ta", 60000)
+            exp_o = "abc" + PAYLOADS["especiales"] + "def"
+            report("O) caret en el medio — sin duplicar ñ ¿ ¡ é",
+                   norm(got) == norm(exp_o),
+                   "" if norm(got) == norm(exp_o) else f"quedó: {got!r} esperado: {exp_o!r}")
 
-        # ---------------- I) typos ON → se corrigen solos ----------------------
-        set_settings(sw, wpm=220, pauses=False, typos=True, typoPct=25)
-        prep(page, "#inp", "simple")
-        invoke(sw)
-        ok = wait_value(page, "#inp", PAYLOADS["simple"], 45000)
-        bs = page.evaluate("() => (window.__events||[]).filter(r => r.type==='keydown' && r.key==='Backspace').length")
-        report("I) typos simulados y corregidos", ok and bs > 0, f"backspaces={bs} texto_final_ok={ok}")
+        if active("P"):
+            # ---------------- P) editor async (inserta 60 ms después) --------------
+            # #xce2 cancela el beforeinput y aplica el texto 60 ms después (render
+            # diferido tipo Lexical/ProseMirror). La sonda debe ESPERAR ese delay;
+            # si lee en el acto, cae a insertText y el caracter entra dos veces.
+            prep(page, "#xce2", "especiales")
+            invoke(sw)
+            got = wait_stable(page, "#xce2", 60000)
+            exp_p = PAYLOADS["especiales"]
+            ok_p = norm(got).rstrip("\n") == norm(exp_p).rstrip("\n")
+            report("P) editor async — la sonda espera el render diferido",
+                   ok_p, "" if ok_p else f"quedó: {got!r} esperado: {exp_p!r}")
 
-        # ---------------- J) FALLBACK 1 forzado: eventos JS + execCommand -----
-        # Se neutraliza chrome.debugger.attach DENTRO del SW (simula "sin
-        # permiso de debugger / attach falla"). El texto debe entrar igual,
-        # con eventos sintéticos isTrusted=false (documentado en el README).
-        set_settings(sw)
-        sw.evaluate("() => { globalThis.__origAttach = chrome.debugger.attach;"
-                    "  chrome.debugger.attach = async () => { throw new Error('e2e: sin debugger'); }; }")
-        prep(page, "#ta", "x280")
-        invoke(sw)
-        ok = wait_value(page, "#ta", PAYLOADS["x280"], 90000)
-        b, tip = badge(sw), badge_tooltip(sw)
-        report("J) fallback JS — texto completo", ok, "" if ok else f"quedó: {field_text(page, '#ta')[:80]!r}")
-        report("J) fallback JS — badge/método", b == "OK" and "JS" in tip, f"badge={b!r} tip={tip[:70]!r}")
-        # Los keydown/keypress sintéticos son isTrusted=false (documentado); los
-        # `input` que dispara execCommand("insertText") los genera el browser y
-        # son isTrusted=true. Lo que NO puede haber es paste, ni data de >1 cp.
-        untrusted = page.evaluate("() => (window.__events||[]).filter(r => r.type==='keydown' && !r.isTrusted).length")
-        pastes = page.evaluate("() => (window.__events||[]).filter(r => r.type==='paste').length")
-        multi = page.evaluate("() => (window.__events||[])"
-                              ".filter(r => (r.type==='input'||r.type==='beforeinput')"
-                              " && r.data !== null && Array.from(r.data).length !== 1).length")
-        report("J) fallback JS — sin paste, 1 cp por evento, keydown sintéticos",
-               pastes == 0 and multi == 0 and untrusted > 0,
-               f"paste={pastes} data_multicp={multi} keydown_no_trusted={untrusted}")
-        # Sin beforeinput SINTÉTICO: antes del fix se disparaba uno propio por
-        # caracter (isTrusted=false) y en editores que hacen
-        # preventDefault(beforinput) el caracter entraba DOS veces. Ahora van
-        # solo los nativos que genere execCommand (en textarea dispara input;
-        # el beforeinput del editing engine, donde lo emita).
-        bi_j = page.evaluate("() => (window.__events||[]).filter(r => r.type==='beforeinput').length")
-        bi_synth = page.evaluate("() => (window.__events||[]).filter(r => r.type==='beforeinput' && !r.isTrusted).length")
-        in_j = page.evaluate("() => (window.__events||[]).filter(r => r.type==='input').length")
-        report("J) fallback JS — sin beforeinput sintético",
-               bi_synth == 0 and in_j > 0 and bi_j <= in_j,
-               f"beforeinput={bi_j} ({bi_synth} sintéticos) input={in_j}")
+        if active("Q"):
+            # ---------------- Q) campo que descarta input + precarga exacta -------
+            # #blocker cancela TODO beforeinput (nada entra nunca) y el arnés lo
+            # precarga con EXACTAMENTE el texto del portapapeles. El contains()
+            # viejo daba un OK falso ("el texto ya estaba"); con la verificación por
+            # ocurrencias tiene que dar DIF: no hay más ocurrencias que en la línea
+            # base, y el campo queda intacto.
+            # Payload SIN caracteres especiales a propósito: el fallback
+            # Input.insertText (semántica de commit IME) NO pasa por el beforeinput
+            # cancelable, entra igual y dispara la reversión DOM del campo (swap de
+            # innerHTML a mitad del commit), lo que puede trabar el pipeline de
+            # edición del renderer (medido en suite: el dispatchKeyEvent siguiente
+            # no vuelve nunca más). Ese caso se cubre en S con el timeout de cdp().
+            prep(page, "#blocker", "simple")
+            page.evaluate("q => window.__blockerPreload(q)", PAYLOADS["simple"])
+            # El campo nunca cambia (discarta todo): el desenlace se espera por la
+            # SECUENCIA del ring del SW, no por el badge — el badge trae el estado
+            # de la sesión anterior (DIF/OK persisten) y un poll por badge cortaba
+            # de inmediato con ese valor viejo (bug del arnés descubierto acá).
+            snap_q = ring_snapshot(sw)
+            invoke(sw)
+            outcome_q, seg_q = wait_session_end(sw, snap_q, 90)
+            time.sleep(0.5)
+            b, tip = badge(sw), badge_tooltip(sw)
+            after_q = field_text(page, "#blocker")
+            ok_dif = (outcome_q is not None and "done" in outcome_q
+                      and b == "DIF" and "NO coincide" in tip)
+            det_q = f"outcome={outcome_q!r} badge={b!r} tip={tip[:80]!r}"
+            if not ok_dif:
+                det_q += "\nDBG SW (sesión):\n" + "\n  ".join(seg_q)
+            report("Q) campo que descarta input — DIF y no el OK falso del contains",
+                   ok_dif, det_q)
+            report("Q) campo que descarta input — el campo queda exactamente igual",
+                   norm(after_q) == norm(PAYLOADS["simple"]), f"quedó: {after_q!r}")
 
-        # ---------------- K) FALLBACK 2 forzado: setter nativo -----------------
-        # execCommand anulado EN LA PÁGINA (válido: en la página de la extensión
-        # el content script corre en el mismo mundo) → cada caracter cae al
-        # setter nativo + evento input manual, un code point por vez.
-        page.evaluate("() => { document.execCommand = () => false; }")
-        prep(page, "#ce", "x280")
-        invoke(sw)
-        got = wait_stable(page, "#ce", 90000)
-        # innerText de un contenteditable con pre-wrap agrega un \n final propio
-        # del DOM (por eso la extensión normaliza con trim): comparar sin él.
-        ok = norm(got).rstrip("\n") == norm(PAYLOADS["x280"]).rstrip("\n")
-        b, tip = badge(sw), badge_tooltip(sw)
-        report("K) fallback SET — texto completo (contenteditable)", ok,
-               "" if ok else f"{first_diff(norm(got), norm(PAYLOADS['x280']))}")
-        report("K) fallback SET — método JS/SET", "SET" in tip, f"badge={b!r} tip={tip[:70]!r}")
-        sw.evaluate("() => { chrome.debugger.attach = globalThis.__origAttach; }")
-        page.reload(wait_until="load")
-        page.wait_for_timeout(500)
+        if active("S"):
+            # ---------------- S) renderer trabado → abort con timeout -------------
+            # #wedge deja entrar el PRIMER caracter y su handler de input hace
+            # busy-loop: el renderer queda trabado en serio y el siguiente
+            # dispatchKeyEvent nunca vuelve. El timeout de cdp() (15 s) tiene que
+            # abortar la sesión, desprender el debugger y dejar badge ERR — sin
+            # esto, la sesión quedaría colgada con el cartel amarillo eterno.
+            # Mismo criterio que Q: desenlace por la secuencia del ring (el badge
+            # puede traer el DIF viejo de Q; el prep de S además dispara un
+            # focusout que aborta cualquier sesión anterior todavía viva).
+            prep(page, "#wedge", "simple")
+            page.evaluate("() => window.__armWedge()")
+            snap_s = ring_snapshot(sw)
+            invoke(sw)
+            outcome_s, seg_s = wait_session_end(sw, snap_s, 45)
+            b = badge(sw)
+            ok_s = (outcome_s is not None and "timeout" in outcome_s
+                    and b == "ERR")
+            det_s = f"outcome={outcome_s!r} badge={b!r}"
+            if not ok_s:
+                det_s += "\nDBG SW (sesión):\n" + "\n  ".join(seg_s)
+            report("S) renderer trabado — abort por timeout, detach y ERR", ok_s, det_s)
+            # El spin de #wedge se libera solo a los 25 s (ver test/app.js):
+            # se espera a que el renderer vuelva y se desarma el campo para
+            # que ningún evento rezagado vuelva a trabarlo.
+            time.sleep(10)  # el timeout de cdp() ya gastó 15 s de los 25
+            for _ in range(40):
+                try:
+                    page.evaluate("() => window.__armWedge(false)")
+                    break
+                except Exception:
+                    time.sleep(0.5)
+            time.sleep(0.5)
 
-        # ---------------- L) input de una línea en <form>: NUNCA submit -------
-        # Regla "nunca hace submit de formularios": un Enter real (CDP keyDown
-        # con text "\r") en un <input> de una línea dispara el default action
-        # de Chrome — submit del form que lo contenga (verificado empíricamente
-        # antes del fix: log = ['kd:Enter', 'change', 'submit']). Con payload
-        # multi-línea la extensión debe colapsar los saltos a UN espacio y no
-        # despachar ningún Enter.
-        set_settings(sw)
-        prep(page, "#inp", "multiline")
-        invoke(sw)
-        expected_ml = re.sub(r"\n+", " ", PAYLOADS["multiline"].replace("\r\n", "\n").replace("\r", "\n"))
-        ok = wait_value(page, "#inp", expected_ml, 60000)
-        submits = page.evaluate("() => (window.__events||[]).filter(r => r.type === 'submit').length")
-        enters = page.evaluate("() => (window.__events||[]).filter(r => r.type === 'keydown' && r.key === 'Enter').length")
-        b, tip = badge(sw), badge_tooltip(sw)
-        det = ("" if ok else f"quedó: {field_text(page, '#inp')!r} · ")
-        det += f"submits={submits} enters={enters} badge={b!r}"
-        report("L) input en form — multi-línea sin submit ni Enter", ok and submits == 0 and enters == 0, det)
-        report("L) input en form — badge OK (saltos→espacios, método CDP)",
-               b == "OK" and "CDP" in tip, f"badge={b!r} tip={tip[:70]!r}")
-
-        # ---------------- M) timeStamp de los eventos CDP ----------------------
-        # Los keydown/input que genera TypeClip deben tener un e.timeStamp
-        # coherente con performance.now(). Antes del fix se enviaba
-        # timestamp: Date.now() (ms) donde CDP espera segundos-epoch → el
-        # timeStamp del sitio quedaba ~1.7e15 ms a futuro (medido).
-        set_settings(sw)
-        prep(page, "#ta", "simple")
-        page.evaluate("""() => {
-          window.__ts = [];
-          const ta = document.getElementById('ta');
-          for (const t of ['keydown', 'input']) ta.addEventListener(t, (e) => {
-            if (e.isTrusted) window.__ts.push(e.timeStamp - performance.now());
-          }, { capture: true });
-        }""")
-        invoke(sw)
-        ok = wait_value(page, "#ta", PAYLOADS["simple"], 30000)
-        time.sleep(0.5)
-        ts = page.evaluate("() => window.__ts || []")
-        max_d = max((abs(d) for d in ts), default=1e18)
-        report("M) timeStamp coherente (CDP)", ok and len(ts) > 10 and max_d < 1000,
-               f"{len(ts)} eventos, |delta| máx={max_d:.1f} ms")
-
-        # ---------------- N) campo con texto previo (caret al final) -----------
-        # Línea base: el campo ya tenía texto → el badge tiene que ser OK (el
-        # tipeo quedó insertado) y no DIF eterno, y sin duplicar especiales.
-        prep(page, "#ta", "especiales")
-        page.eval_on_selector("#ta", "el => { el.value = 'antes: '; el.setSelectionRange(7, 7); }")
-        invoke(sw)
-        got = wait_stable(page, "#ta", 60000)
-        time.sleep(1)
-        b, tip = badge(sw), badge_tooltip(sw)
-        exp_n = "antes: " + PAYLOADS["especiales"]
-        report("N) campo con texto previo — inserta completo y sin duplicar",
-               norm(got) == norm(exp_n) and got.count("ñ") == 3,
-               "" if norm(got) == norm(exp_n) else f"quedó: {got!r}")
-        report("N) campo con texto previo — badge OK (verifica contra línea base)",
-               b == "OK" and "ya tenía texto" in tip, f"badge={b!r} tip={tip[:80]!r}")
-
-        # ---------------- O) caret en el medio + caracteres especiales ---------
-        # La sonda vieja miraba la COLA del campo (asumía caret al final) y
-        # duplicaba la primera ñ/¿/¡/é. Ahora compara largos antes/después.
-        prep(page, "#ta", "especiales")
-        page.eval_on_selector("#ta", "el => { el.value = 'abcdef'; el.setSelectionRange(3, 3); }")
-        invoke(sw)
-        got = wait_stable(page, "#ta", 60000)
-        exp_o = "abc" + PAYLOADS["especiales"] + "def"
-        report("O) caret en el medio — sin duplicar ñ ¿ ¡ é",
-               norm(got) == norm(exp_o),
-               "" if norm(got) == norm(exp_o) else f"quedó: {got!r} esperado: {exp_o!r}")
-
-        # ---------------- P) editor async (inserta 60 ms después) --------------
-        # #xce2 cancela el beforeinput y aplica el texto 60 ms después (render
-        # diferido tipo Lexical/ProseMirror). La sonda debe ESPERAR ese delay;
-        # si lee en el acto, cae a insertText y el caracter entra dos veces.
-        prep(page, "#xce2", "especiales")
-        invoke(sw)
-        got = wait_stable(page, "#xce2", 60000)
-        exp_p = PAYLOADS["especiales"]
-        ok_p = norm(got).rstrip("\n") == norm(exp_p).rstrip("\n")
-        report("P) editor async — la sonda espera el render diferido",
-               ok_p, "" if ok_p else f"quedó: {got!r} esperado: {exp_p!r}")
+        if active("R"):
+            # ---------------- R) línea base que ya contiene el texto --------------
+            # El portapapeles YA aparece una vez en el campo; el tipeo con caret al
+            # medio lo deja dos. La verificación por ocurrencias tiene que dar OK
+            # (creció de 1 a 2): no vale DIF solo porque el campo no quede
+            # exactamente igual al portapapeles.
+            prep(page, "#ta", "simple")
+            page.eval_on_selector("#ta", "el => { el.value = 'XX ' + %s + ' YY'; el.setSelectionRange(3, 3); }"
+                                  % json.dumps(PAYLOADS["simple"]))
+            # Tras el wedge el renderer puede procesar eventos rezagados: dar
+            # margen a que el foco se asiente antes de abrir la sesión.
+            time.sleep(1.5)
+            invoke(sw)
+            got = wait_stable(page, "#ta", 60000)
+            exp_r = "XX " + PAYLOADS["simple"] + PAYLOADS["simple"] + " YY"
+            ok_r = norm(got) == norm(exp_r)
+            report("R) línea base repetida — inserta el texto completo sin perder nada",
+                   ok_r, "" if ok_r else f"quedó: {got!r} esperado: {exp_r!r}")
+            b, tip = badge(sw), badge_tooltip(sw)
+            report("R) línea base repetida — OK por crecimiento de ocurrencias (no DIF falso)",
+                   b == "OK" and "ya tenía texto" in tip, f"badge={b!r} tip={tip[:80]!r}")
     finally:
         ctx.close()
         httpd.shutdown()

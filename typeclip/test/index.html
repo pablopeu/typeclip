@@ -79,6 +79,23 @@
 </fieldset>
 
 <fieldset>
+  <legend>6) campo que descarta todo el input (readonly disfrazado)</legend>
+  <div id="blocker" contenteditable="true" data-placeholder="cancela beforeinput/input y nunca cambia"></div>
+  <p><small>Cancela <code>beforeinput</code> y nunca aplica nada (como un campo congelado o un editor que ignora
+  la edición programática). La verificación final tiene que marcar DIF aunque el campo esté precargado con
+  exactamente el texto del portapapeles.</small></p>
+</fieldset>
+
+<fieldset>
+  <legend>7) campo que traba el renderer (busy-loop en input)</legend>
+  <div id="wedge" contenteditable="true" data-placeholder="deja entrar 1 caracter y traba todo"></div>
+  <p><small>Armando con <code>window.__armWedge()</code>: deja entrar el PRIMER caracter y su handler de
+  <code>input</code> hace <code>while(true)</code>. El renderer queda trabado y el siguiente evento de teclado
+  CDP no vuelve nunca. La extensión tiene que abortar sola por timeout, desprenderser del debugger y marcar
+  ERR (test S). <b>Ojo: traba la pestaña de verdad — recargar después.</b></small></p>
+</fieldset>
+
+<fieldset>
   <legend>Diagnóstico de eventos (criterio 6)</legend>
   <p>
     <button id="verify">Verificar eventos capturados</button>

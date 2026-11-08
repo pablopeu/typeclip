@@ -106,7 +106,8 @@ function renderLogTable(maxRows) {
 
 const FIELDS = [document.getElementById("inp"), document.getElementById("ta"),
                 document.getElementById("ce"), document.getElementById("xce"),
-                document.getElementById("xce2")];
+                document.getElementById("xce2"), document.getElementById("blocker"),
+                document.getElementById("wedge")];
 // Contador de Esc REAL que llega al nivel del campo (fase burbuja): mientras
 // TypeClip tipea, el Esc de cancelación debe TRAGARSE en document-captura y
 // nunca llegar acá (si no, el sitio lo recibe: p.ej. X abre su diálogo de
@@ -184,6 +185,49 @@ xce.addEventListener("keydown", (e) => {
       sel.removeAllRanges();
       sel.addRange(range);
     }, 60);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Campo que descarta todo el input (readonly disfrazado): cancela el
+// beforeinput y deshace cualquier cambio que le llegue por otro lado. Aunque
+// esté precargado con exactamente el texto del portapapeles, la verificación
+// final de la extensión tiene que dar DIF: el tipeo no incrementó nada.
+// ---------------------------------------------------------------------------
+{
+  const ed = document.getElementById("blocker");
+  ed.addEventListener("beforeinput", (e) => e.preventDefault());
+  let frozen = null;
+  const freeze = () => { frozen = ed.innerHTML; };
+  ed.addEventListener("focus", freeze);
+  ed.addEventListener("input", () => {
+    // Red de seguridad: si algo modificó el DOM pese al preventDefault, volver.
+    if (frozen !== null && ed.innerHTML !== frozen) ed.innerHTML = frozen;
+  });
+  // API para el arnés: precarga el texto exacto y congela ese estado.
+  window.__blockerPreload = (text) => {
+    ed.innerText = text;
+    frozen = ed.innerHTML;
+    return ed.innerText;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Campo que traba el renderer (test S): deja entrar el primer caracter y su
+// handler de input hace busy-loop. Se arma explícitamente con
+// window.__armWedge() para no trabar la página por accidente en otros tests.
+// El bloqueo dura 25 s (reloj, sin timers): más que el timeout de 15 s de
+// cdp() — que es lo que el test mide — y se libera solo, así el renderer
+// (compartido por el proceso de la página) se recupera y la suite sigue.
+// ---------------------------------------------------------------------------
+{
+  const ed = document.getElementById("wedge");
+  let armed = false;
+  window.__armWedge = (on = true) => { armed = !!on; };
+  ed.addEventListener("input", () => {
+    if (!armed) return;
+    const until = Date.now() + 25000;
+    while (Date.now() < until) { /* busy-loop */ }
   });
 }
 

@@ -50,9 +50,14 @@ ver el [README](README.md).
    El método usado queda en el tooltip del badge (CDP / JS / JS/SET).
 8. Verificación final: lee el campo, normaliza (NFC, saltos uniformes,
    espacios de relleno, trim) y compara → badge `OK` / `DIF` (con detalle de
-   la primera diferencia) / `ERR`. Con línea base: si el campo YA tenía texto
-   (leído antes de tipear), `OK` también acepta "el texto quedó contenido en
-   el campo" (el caret pudo estar en cualquier posición).
+   la primera diferencia) / `ERR`. Con línea base vacía: igualdad exacta.
+   Con línea base no vacía (texto que el campo ya tenía, leído antes de
+   tipear): `OK` solo si el texto del portapapeles aparece MÁS ocurrencias
+   (no solapadas) que en la línea base y el largo no se achicó — un simple
+   "contains" daba un OK falso si el campo ya contenía exactamente el texto
+   (p.ej. un campo congelado que descarta todo input). Tests Q y R del E2E
+   cubren ambos lados (OK falso eliminado, sin DIF falso cuando el texto se
+   repite).
 9. Cancelación: Esc (keydown → content script → mensaje `esc` con guard de
    sender; mientras hay sesión el Esc se TRAGA con preventDefault +
    stopImmediatePropagation en document-captura, para que el sitio no lo
@@ -106,7 +111,7 @@ sobre su propio fondo + LANCZOS).
 
 ## Suite E2E (`tools/e2e.py`)
 
-32/32 PASS (Chromium 156 headless, Playwright 1.64). Cobertura: A input +
+37/37 PASS (Chromium 156 headless, Playwright 1.64). Cobertura: A input +
 eventos trusted, B textarea 280+ (tildes/ñ/¿¡/emoji/@), C contenteditable,
 D composer fake tipo X (typeahead se come el Enter → DIF esperado), E 2000+
 caracteres de corrido (ciclo de vida del SW), F cancelación por Esc / toggle /
@@ -116,7 +121,30 @@ H abort por cambio de pestaña, I typos autocorregidos, J fallback JS forzado
 form multi-línea sin submit, M timeStamp de los eventos CDP coherente con
 performance.now(), N campo con texto previo (badge OK contra línea base),
 O caret en el medio sin duplicar ñ ¿ ¡ é, P editor async (inserta 60 ms
-después) sin duplicar especiales.
+después) sin duplicar especiales, Q campo que descarta todo el input
+precargado con el texto exacto (DIF, no el OK falso del "contains"), R línea
+base que ya contiene el texto (OK por crecimiento de ocurrencias, sin DIF
+falso), S renderer trabado por la página (busy-loop en input) → abort por
+timeout de cdp(), detach y badge ERR (sin esto la sesión quedaba colgada con
+el cartel amarillo eterno).
+
+Notas de robustez medidas empíricamente (2026-11-08):
+
+- **`Input.insertText` no pasa por el `beforeinput` cancelable** (semántica
+  de commit IME): en un editor que bloquea el input con preventDefault, los
+  caracteres normales no entran pero el fallback insertText sí. Además, si
+  ese editor muta el DOM dentro de su handler de `input` (swap de innerHTML),
+  el pipeline de edición del renderer puede trabarse y el
+  `Input.dispatchKeyEvent` siguiente no vuelve nunca — por eso `cdp()` tiene
+  timeout de 15 s (abort + detach + ERR) y las lecturas de la sonda 2 s.
+  El timer del timeout se cancela (`clearTimeout`) cuando el comando responde:
+  con un `Promise.race` pelado cada comando exitoso dejaba vivo un timer que
+  15 s después rechazaba una promise ya resuelta y ensuciaba el log del SW
+  (en una sesión de 2000 caracteres, miles de timers basura a la vez).
+- **Si Chrome termina el service worker a mitad de sesión**, el attach del
+  debugger queda huérfano (cartel amarillo para siempre) y el badge clavado
+  en un porcentaje. Al renacer, el SW desprende attaches propios y limpia
+  (`chrome.debugger.detach` solo afecta el attach de la propia extensión).
 
 Ejecución: `python3 tools/e2e.py` (levanta la página de prueba en
 `0.0.0.0:8737` y lanza Chromium con la extensión cargada).
@@ -134,6 +162,18 @@ Notas del arnés que costaron descubrir (headless nuevo):
   se usa `chrome.tabs.update` desde el SW (nivel browser).
 - Timeouts con `time.sleep()` de Python, no timers de la página (mismo
   encolamiento).
+- **El desenlace de una sesión se espera por la SECUENCIA del ring del SW**
+  (`wait_session_end`), nunca por el badge: el badge guarda el resultado de la
+  sesión anterior (OK/DIF/ERR persisten) y un poll por badge corta de
+  inmediato con ese valor viejo. El criterio es: línea `invoke (nueva sesión)`
+  posterior al snapshot → su primer `outcome`/`abort`/`cancel` posterior.
+- El campo `#wedge` del test S traba el renderer con un busy-loop **con
+  reloj** (25 s): más que los 15 s del timeout de cdp() — que es lo que mide —
+  y se libera solo, así el proceso de renderer (compartido con la pestaña)
+  se recupera. Sin eso, ni la recarga ni una pestaña nueva del mismo origen
+  vuelven a responder.
+- `ONLY=A,B,…` en el entorno corre solo los bloques indicados (útil para
+  iterar sobre Q/S/R sin esperar los ~9 min completos).
 
 Otros scripts de `tools/`: `smoke.py` (carga mínima), `make_icons.py`
 (regenera los PNG desde `TC.png`), `e_diag.py` / `esc_diag*.py`
