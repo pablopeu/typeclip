@@ -691,6 +691,53 @@ def main():
             b, tip = badge(sw), badge_tooltip(sw)
             report("R) línea base repetida — OK por crecimiento de ocurrencias (no DIF falso)",
                    b == "OK" and "already had text" in tip, f"badge={b!r} tip={tip[:80]!r}")
+
+        if active("T"):
+            # ---------------- T) abort por cambio de campo (editable-changed) --
+            # Bug de v1.3.0: el listener de onMessage declaraba (msg, sender) y
+            # el parámetro tapaba al helper de i18n msg() →
+            # abortSession(msg("reasonField")) lanzaba TypeError y esta
+            # protección quedaba muerta: el tipeo CDP seguía ESCRIBIENDO EN EL
+            # CAMPO NUEVO al que se movió el foco. El foco se cambia con
+            # Runtime.evaluate por la PROPIA sesión de debugger de la extensión
+            # (mismo truco que el Esc del bloque F: se intercala dentro del
+            # pipeline del tipeo, que el tráfico CDP del arnés no puede cruzar);
+            # el focusin dispara el monitor del content script →
+            # {tc:'editable-changed'} → abort con ERR. #inp se vacía a mano
+            # ANTES: #clear solo limpia el log de eventos, no los campos.
+            # Payload "simple" a propósito: sin saltos de línea, para que si el
+            # abort falla (regresión) el resto no dispare un Enter→submit en el
+            # <form> que contiene a #inp (el submit igual está preventDefault,
+            # pero así el desenlace roto queda limpio de ruido).
+            # wpm bajo a propósito: sesión de ~14 s, para que el cambio de foco
+            # caiga seguro a mitad del tipeo y no sobre el final.
+            set_settings(sw, wpm=100, pauses=False)
+            prep(page, "#ta", "simple")
+            page.eval_on_selector("#inp", "el => { el.value = ''; }")
+            snap_t = ring_snapshot(sw)
+            invoke(sw)
+            time.sleep(2.5)
+            sw.evaluate("""() => chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([t]) =>
+                chrome.debugger.sendCommand({ tabId: t.id }, 'Runtime.evaluate',
+                  { expression: "document.getElementById('inp').focus()" })
+              ).catch(e => 'focus-switch (ok si abortó antes): ' + e.message)""")
+            outcome_t, seg_t = wait_session_end(sw, snap_t, 45)
+            time.sleep(1.0)  # margen para que el detach destrabe los eval de la página
+            b, tip = badge(sw), badge_tooltip(sw)
+            nuevo = field_text(page, "#inp")
+            parcial = norm(field_text(page, "#ta"))
+            full_t = norm(PAYLOADS["simple"])
+            ok_abort = (outcome_t is not None and "abort" in outcome_t
+                        and "field focus changed" in outcome_t and b == "ERR")
+            det_t = (f"outcome={outcome_t!r} badge={b!r} tip={tip[:60]!r} "
+                     f"nuevo={nuevo!r} parcial={parcial[:40]!r}")
+            if not ok_abort:
+                det_t += "\nDBG SW (sesión):\n" + "\n  ".join(seg_t)
+            report("T) cambio de campo a mitad — abort con ERR (editable-changed)",
+                   ok_abort, det_t)
+            report("T) cambio de campo a mitad — el campo nuevo queda vacío y el original a medias",
+                   nuevo == "" and full_t.startswith(parcial) and 0 < len(parcial) < len(full_t),
+                   f"nuevo={nuevo!r} parcial={parcial!r} de {len(full_t)} chars")
     finally:
         ctx.close()
         httpd.shutdown()

@@ -3,10 +3,36 @@
 Formato simple: lo importante de cada versión, más abajo los detalles en el
 git log.
 
-## 1.3.0 (no publicada aún — rama `store-readiness`)
+## 1.3.1
 
-Preparación para el envío a la Chrome Web Store (sin cambios de comportamiento
-del motor de tipeo):
+Fix de un bug de la 1.3.0 encontrado en la revisión pre-envío, más ajustes de
+la misma revisión:
+
+- **Bug `editable-changed`**: el listener `chrome.runtime.onMessage` de
+  `background.js` declaraba el parámetro `msg`, que tapaba al helper de i18n
+  `msg()`. Al mover el foco a otro campo a mitad del tipeo,
+  `abortSession(msg("reasonField"))` lanzaba TypeError y la protección quedaba
+  muerta: con CDP, el tipeo seguía escribiendo **en el campo nuevo**. Lo
+  introdujo el commit de i18n de la 1.3.0; ningún test lo ejercitaba.
+  Renombrado el parámetro del listener (y el de `sendToContent`, mismo
+  riesgo). Test E2E T: abort con ERR, el campo nuevo queda vacío y el
+  original queda a medias.
+- `tools/audit.py`: regla nueva — ningún parámetro puede llamarse igual que
+  un binding de nivel superior del mismo archivo (detecta exactamente esta
+  clase de bug en análisis estático).
+- Workflow de release: Playwright fijado en 1.64.1 (la versión del entorno de
+  desarrollo; antes instalaba la última disponible y podía divergir).
+- Licencia: `LICENSE` (GPLv2) y sección de licencia en el README.
+- Copia: suavizadas las frases del README sobre el pegado (describen el
+  mecanismo — eventos de teclado, nunca un evento paste — sin insinuar que no
+  se pueda detectar nada) y las notas del release v1.0.0; corregido el
+  encabezado de la 1.3.0 acá abajo (sí trae cambios de comportamiento).
+- Suite E2E: 39/39 (antes 37/37).
+
+## 1.3.0
+
+Preparación para el envío a la Chrome Web Store, más robustez del motor
+(cambios de comportamiento incluidos — ver los dos primeros puntos):
 
 - Verificación final más honesta: con el campo precargado, `OK` solo si el
   texto del portapapeles aparece **más veces** que en la línea base (el

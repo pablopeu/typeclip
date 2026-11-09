@@ -233,6 +233,40 @@ def main():
     report("5. Carpeta test/ sin referencias desde producción", not test_refs,
            "; ".join(f"{r}:{i}" for r, i, _ in test_refs[:4]))
 
+    # 6) Parámetros que tapan bindings de nivel superior (shadowing) --------
+    # Bug real de v1.3.0: el listener de onMessage declaraba (msg, sender) y
+    # el parámetro msg tapaba al helper de i18n msg() de background.js →
+    # abortSession(msg("reasonField")) lanzaba TypeError y la protección de
+    # "cambió el campo enfocado a mitad del tipeo" quedaba muerta (pasaron los
+    # tests E2E porque ninguno ejercitaba ese mensaje). Regla: ningún parámetro
+    # de ninguna función puede llamarse igual que un binding de nivel superior
+    # (columna 0) del mismo archivo.
+    shadow_bad = set()
+    for f, text in src.items():
+        if f.suffix != ".js":
+            continue
+        top = set(re.findall(r"^(?:async\s+)?(?:const|let|var|function)\s+([\w$]+)",
+                             text, re.M))
+        if not top:
+            continue
+        param_lists = []
+        # (a, b) => …  y  function name(a, b) {  (listas de una línea sin
+        # paréntesis anidados: los defaults con paréntesis no matchean, no
+        # generan falsos positivos)
+        for m in re.finditer(r"\(([^()]{0,300}?)\)\s*=>"
+                             r"|\bfunction(?:\s+[\w$]+)?\s*\(([^()]{0,300}?)\)", text):
+            param_lists.append(m.group(1) or m.group(2) or "")
+        # arrow de un solo parámetro sin paréntesis: name => …
+        for m in re.finditer(r"\b([\w$]+)\s*=>", text):
+            param_lists.append(m.group(1))
+        for plist in param_lists:
+            for p in plist.split(","):
+                name = p.split("=")[0].strip().lstrip(".").strip()
+                if re.fullmatch(r"[\w$]+", name) and name in top:
+                    shadow_bad.add(f"{f.name}: parámetro '{name}' tapa al binding de nivel superior")
+    report("6. Sin parámetros que tapen bindings de nivel superior", not shadow_bad,
+           "; ".join(sorted(shadow_bad)[:4]))
+
     # ------------------------------------------------------------------
     # Tabla final
     # ------------------------------------------------------------------

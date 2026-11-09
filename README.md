@@ -12,8 +12,8 @@ A Chrome extension that **types for you** the text you copied.
 
 Copy it as usual (Ctrl+C), click the field where you want it (an X/Twitter post
 box, a form, an email…) and TypeClip writes it **character by character, with
-human-like timing**, as if you were typing it yourself. The website sees real
-typing: there is no "paste" to block or detect.
+human-like timing**, as if you were typing it yourself. The website receives
+ordinary keystrokes, one at a time — no paste event is ever involved.
 
 ### Installation
 
@@ -208,8 +208,8 @@ Extensión de Chrome que **tipea por vos** el texto que copiaste.
 
 La copiás normal (Ctrl+C), hacé click en el campo donde la querés (el cuadro de
 texto de X/Twitter, un formulario, un mail…) y TypeClip la escribe **letra por
-letra, con tiempos humanos**, como si la escribiras con el teclado. El sitio web
-ve tipeo de verdad: no hay "pegado" que bloquear ni detectar.
+letra, con tiempos humanos**, como si la escribiras con el teclado. El sitio
+recibe tecleo común, tecla por tecla — nunca se dispara ningún evento de pegado.
 
 ### Instalación
 
@@ -396,3 +396,11 @@ Privacidad y demo:
 
 Para detalles técnicos (arquitectura, métodos de tipeo, reglas de privacidad y
 la suite de pruebas automatizada), ver [DEVELOPMENT.md](DEVELOPMENT.md).
+
+---
+
+## License · Licencia
+
+TypeClip is released under the **GNU General Public License, version 2** —
+see [LICENSE](LICENSE). TypeClip se publica bajo la **Licencia Pública General
+GNU, versión 2** — ver [LICENSE](LICENSE).

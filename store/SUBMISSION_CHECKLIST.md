@@ -5,18 +5,17 @@ ni debe hacer un agente: requiere tu cuenta de Google, tu pago y tu decisión.
 Todo lo marcado **[PEGAR]** tiene el texto exacto en `store/listing/en.md` o
 `store/listing/es.md`.
 
-Estado del paquete: `dist/typeclip-1.3.0.zip` generado y validado con
-`tools/package.py` (todos los chequeos en TODO OK; SHA-256, tamaño y
-lista de archivos al final).
+Estado del paquete: `typeclip-1.3.1.zip`, construido por el workflow de CI
+sobre el tag `v1.3.1` (auditoría + suite E2E 39/39 + validaciones de
+`tools/package.py` antes de adjuntarlo). SHA-256, tamaño y lista de archivos
+al final.
 
 ---
 
 ## Decisiones pendientes ANTES de entrar al dashboard
 
-1. **Licencia del repositorio** — hoy no hay archivo LICENSE. No la elige nadie
-   por vos. Si querés una antes de publicar, agregala al repo (MIT/Apache-2.0/
-   la que sea) — el listing no menciona licencia, así que no bloquea el envío,
-   pero conviene decidir.
+1. ~~**Licencia del repositorio**~~ — RESUELTA: GPLv2 (`LICENSE` en la raíz,
+   sección de licencia en el README; 2026-11-08).
 2. **GitHub Pages** — la política de privacidad y la demo viven en
    `docs/privacy.html` y `docs/demo.html`. Para que las URLs
    `https://pablopeu.github.io/typeclip/privacy.html` y `…/demo.html` funcionen:
@@ -43,7 +42,9 @@ lista de archivos al final).
 
 ### 2) Nuevo ítem
 
-1. "Nuevo ítem" → subir `dist/typeclip-1.3.0.zip`.
+1. "Nuevo ítem" → subir `typeclip-1.3.1.zip` (el asset del release
+   https://github.com/pablopeu/typeclip/releases/tag/v1.3.1 — es el paquete
+   canónico, construido por CI).
 2. Debe pasar el parseo del manifest (si falla, correr
    `python3 tools/package.py` de nuevo y leer las validaciones).
 
@@ -122,7 +123,9 @@ lista de archivos al final).
 2. Agregar el botón/link de la CWS al README (sección Installation de ambos
    idiomas) y commitear. Recién ahí el link es real — antes no (por eso el
    README actual no lo tiene).
-3. Merge de `store-readiness` a `main` + tag `v1.3.0` + release con el ZIP.
+3. Subir a la tienda la versión que salga de la revisión (hoy la candidata es
+   el ZIP del tag `v1.3.1`; si hay más fixes antes de la aprobación, tag
+   nuevo y actualizar los datos de abajo).
 
 ---
 
@@ -150,18 +153,18 @@ verificación de que la extensión anda como la va a usar gente real:
 
 ```bash
 python3 tools/audit.py          # auditoría estática — tiene que dar TODO OK
-python3 tools/e2e.py            # suite E2E — tiene que dar 37/37
+python3 tools/e2e.py            # suite E2E — tiene que dar 39/39
 python3 tools/store_assets.py   # regenera screenshots/tiles/icono
 python3 tools/package.py        # regenera el ZIP + SHA-256
 ```
 
 ## Datos del paquete
 
-- ZIP: `typeclip-1.3.0.zip`, adjunto al release de GitHub
-  https://github.com/pablopeu/typeclip/releases/tag/v1.3.0 (13 archivos,
+- ZIP: `typeclip-1.3.1.zip`, adjunto al release de GitHub
+  https://github.com/pablopeu/typeclip/releases/tag/v1.3.1 (13 archivos,
   manifest en la raíz, construido por el workflow de CI sobre el tag).
-- SHA-256 (asset del release): `a1ec198460bb79a9bfb149922b348e50925fe5ff37a2362052c8a44f0eed205f`
-- Tamaño: 43.013 bytes
+- SHA-256 (asset del release): PENDIENTE — completar del asset del tag v1.3.1.
+- Tamaño: PENDIENTE — completar del asset del tag v1.3.1.
 - Nota: un `tools/package.py` local regenera el ZIP con contenido idéntico
   pero distinto SHA-256 (los ZIP guardan timestamps de empaquetado). El que
   importa es el archivo concreto que se sube al dashboard.

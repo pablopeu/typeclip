@@ -291,10 +291,12 @@ async function injectContentScript(tabId) {
   }
 }
 
-function sendToContent(tabId, frameId, msg) {
+// El tercer parámetro no se llama "msg": taparía al helper de i18n (regla 6
+// del audit).
+function sendToContent(tabId, frameId, payload) {
   return new Promise((resolve) => {
     const opts = frameId != null ? { frameId } : {};
-    chrome.tabs.sendMessage(tabId, msg, opts, (resp) => {
+    chrome.tabs.sendMessage(tabId, payload, opts, (resp) => {
       if (chrome.runtime.lastError) return resolve({ ok: false, error: chrome.runtime.lastError.message });
       resolve(resp ?? { ok: false, error: "sin respuesta" });
     });
@@ -677,7 +679,8 @@ async function playCdp(plan, delayFn) {
       lastPct = pct;
       chrome.action.setBadgeText({ text: pct + "%" });
     }
-    if ((i + 1) % 200 === 0) dbglog("plan@" + (i + 1), pct + "%");  }
+    if ((i + 1) % 200 === 0) dbglog("plan@" + (i + 1), pct + "%");
+  }
   return { status: "done", method: "CDP" };
 }
 
@@ -791,9 +794,13 @@ function stopGlobalMonitors() {
 // Mensajes del content script
 // ---------------------------------------------------------------------------
 
-chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (!msg || !msg.tc) return;
-  switch (msg.tc) {
+// OJO: el parámetro del listener NO puede llamarse "msg" — taparía al helper
+// de i18n msg() de arriba y abortSession(msg("reasonField")) lanzaría TypeError
+// (bug de v1.3.0, detectado en la revisión pre-envío; la regla 6 de
+// tools/audit.py lo detecta desde entonces).
+chrome.runtime.onMessage.addListener((m, sender) => {
+  if (!m || !m.tc) return;
+  switch (m.tc) {
     case "esc": // Esc presionado en la página (solo isTrusted=true) → cancelar
       if (session && sender.tab?.id === session.tabId) cancel("Esc");
       break;
@@ -802,7 +809,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       break;
     case "progress": // progreso del fallback JS (también mantiene vivo el SW)
       if (session && sender.tab?.id === session.tabId) {
-        chrome.action.setBadgeText({ text: msg.pct + "%" });
+        chrome.action.setBadgeText({ text: m.pct + "%" });
       }
       break;
   }

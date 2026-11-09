@@ -53,8 +53,9 @@ Developer Dashboard Privacy tab.
 
 ## Decisión pendiente del dueño (NO tomar por cuenta propia)
 
-- **Licencia del repo** — elegir una no cambia el envío, pero la política de
-  datos y el listing no deben afirmar nada sobre licencia hasta que se elija.
+- ~~**Licencia del repo**~~ — RESUELTA (2026-11-08): GPLv2, archivo `LICENSE`
+  en la raíz. El listing y la política de datos siguen sin afirmar nada sobre
+  licencia (correcto: el dashboard no lo pide).
 - **Declarar o no "Website content"** además de "User-generated content"
   (lectura del campo para verificar, en memoria). Recomendación del análisis:
   declarar también "Website content" es la opción conservadora.

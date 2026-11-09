@@ -134,7 +134,7 @@ extensión.
 
 ## Suite E2E (`tools/e2e.py`)
 
-37/37 PASS (Chromium 156 headless, Playwright 1.64). Cobertura: A input +
+39/39 PASS (Chromium 156 headless, Playwright 1.64). Cobertura: A input +
 eventos trusted, B textarea 280+ (tildes/ñ/¿¡/emoji/@), C contenteditable,
 D composer fake tipo X (typeahead se come el Enter → DIF esperado), E 2000+
 caracteres de corrido (ciclo de vida del SW), F cancelación por Esc / toggle /
@@ -149,7 +149,10 @@ precargado con el texto exacto (DIF, no el OK falso del "contains"), R línea
 base que ya contiene el texto (OK por crecimiento de ocurrencias, sin DIF
 falso), S renderer trabado por la página (busy-loop en input) → abort por
 timeout de cdp(), detach y badge ERR (sin esto la sesión quedaba colgada con
-el cartel amarillo eterno).
+el cartel amarillo eterno), T abort por cambio de campo a mitad del tipeo
+(`editable-changed`: el foco pasa a otro campo → ERR y el campo nuevo queda
+vacío; el bug de shadowing de `msg` en el listener de la 1.3.0 pasó los 37
+tests anteriores porque ninguno ejercitaba ese mensaje).
 
 Notas de robustez medidas empíricamente (2026-11-08):
 
