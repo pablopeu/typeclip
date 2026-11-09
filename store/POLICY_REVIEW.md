@@ -16,7 +16,7 @@ Developer Dashboard Privacy tab.
 | **`debugger` en particular** | Se adjunta SOLO durante el tipeo del tab activo invocado por el usuario, se desprende al terminar/cancelar (incluido el race de arranque). Chrome muestra su infobar amarilla todo el tiempo — imposible que pase desapercibido. | Tests E2E F (detach limpio, re-tipeo) y código de attach/detach en `background.js`; nota al revisor en el listing | **Medio**: revisión manual más exigente; posible ronda de preguntas. Mitigación: justificación explícita + demo + código visible en GitHub |
 | **No código remoto** | Cero pedidos de red: sin fetch/XHR/WebSocket/sendBeacon/analytics. Todo el código viaja en el paquete. | `tools/audit.py` → TODO OK, exit 0; respuesta "¿código remoto? → No" en el listing | Bajo |
 | **No ofuscación / malware** | Código legible, comentado, sin eval/Function/importScripts remotos, sin minificación. | `tools/audit.py` (heurística de minificación y dynamic-eval) | Bajo |
-| **User Data Policy + Limited Use** | Datos tocados: texto del portapapeles y contenido del campo, SOLO en memoria, durante la invocación. Nunca transmitidos, guardados ni compartidos. Sync de opciones = settings del usuario vía Chrome. Declaración propuesta: "User-generated content" con venta/uso no relacionado = No. | `PRIVACY.md` + `docs/privacy.html`; `audit.py` (sin storage de texto, sin logging del contenido); sección "Data use" del listing | **Medio-bajo**: la categorización exacta la confirma el dueño en el dashboard (DECISIÓN PENDIENTE si además declarar "Website content") |
+| **User Data Policy + Limited Use** | Datos tocados: texto del portapapeles y contenido del campo, SOLO en memoria, durante la invocación. Nunca transmitidos, guardados ni compartidos. Sync de opciones = settings del usuario vía Chrome. Declaración confirmada por el dueño: "User-generated content" + "Website content", con venta/uso no relacionado = No. | `PRIVACY.md` + `docs/privacy.html`; `audit.py` (sin storage de texto, sin logging del contenido); sección "Data use" del listing | **Medio-bajo**: la categorización exacta se confirma en el dashboard al enviar |
 | **Comportamiento engañoso / inesperado** | Lo que hace es visible: infobar de Chrome durante el tipeo, badge con progreso, sin acciones ocultas, nunca envía forms ni aprieta botones del sitio. El listing describe exactamente eso (sin prometer "indetectabilidad": término PROHIBIDO en nuestra copia). | Listing EN/ES (reglas de copia honesta aplicadas); tests L (0 submits, 0 Enter en form) | **Medio-bajo**: un revisor puede leer "útil donde bloquean el pegado" como evasión de controles del sitio. La copia lo presenta como tipeo real y visible, con infobar; no promete burlar nada |
 | **Spam / keyword stuffing** | Copia del listing sin repetición de keywords (ninguna palabra clave >5 veces), sin listas de marcas ni sitios compatibles. | `store/listing/en.md` + `es.md` | Bajo |
 | **Impersonación / marcas de terceros** | Ninguna marca de terceros en nombre, íconos, screenshots o descripción (no se nombran X/Twitter, LinkedIn, etc.). Assets: logo propio "TC". | `store/assets/*` + listings | Bajo |
@@ -51,14 +51,19 @@ Developer Dashboard Privacy tab.
    - Set exacto de categorías de datos del tab de privacidad y el texto de
      cada pregunta de "uso de datos".
 
-## Decisión pendiente del dueño (NO tomar por cuenta propia)
+5. **Datos de contacto del desarrollador en el paquete**: el footer de la
+   página de opciones incluye redes y WhatsApp del dueño. Decisión del dueño:
+   queda así (2026-11-08). No viola ninguna política (es información del
+   propio desarrollador, estática y a la vista), pero saber que va público
+   dentro del paquete que se sube a la tienda.
+
+## Decisiones del dueño (todas resueltas)
 
 - ~~**Licencia del repo**~~ — RESUELTA (2026-11-08): GPLv2, archivo `LICENSE`
   en la raíz. El listing y la política de datos siguen sin afirmar nada sobre
   licencia (correcto: el dashboard no lo pide).
-- **Declarar o no "Website content"** además de "User-generated content"
-  (lectura del campo para verificar, en memoria). Recomendación del análisis:
-  declarar también "Website content" es la opción conservadora.
-- **Habilitar GitHub Pages sobre `/docs`** para las URLs
-  `pablopeu.github.io/typeclip/{privacy,demo}.html` (si no, usar como
-  fallback el link a `PRIVACY.md` en el listing).
+- ~~**Declarar o no "Website content"**~~ — RESUELTO (2026-11-08): se declara,
+  junto con "User-generated content" (opción conservadora confirmada por el
+  dueño).
+- ~~**Habilitar GitHub Pages sobre `/docs`**~~ — RESUELTO (2026-11-08):
+  activado; `pablopeu.github.io/typeclip/{privacy,demo}.html` vivas.

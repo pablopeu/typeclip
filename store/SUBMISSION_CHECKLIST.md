@@ -16,17 +16,13 @@ al final.
 
 1. ~~**Licencia del repositorio**~~ — RESUELTA: GPLv2 (`LICENSE` en la raíz,
    sección de licencia en el README; 2026-11-08).
-2. **GitHub Pages** — la política de privacidad y la demo viven en
-   `docs/privacy.html` y `docs/demo.html`. Para que las URLs
-   `https://pablopeu.github.io/typeclip/privacy.html` y `…/demo.html` funcionen:
-   repo → Settings → Pages → Source: **Deploy from a branch** → rama `main`,
-   carpeta **/docs** → Save. **Ojo**: solo funciona después de mergear a `main`
-   la rama `store-readiness`. Si no querés activarlo, usá las URLs de fallback
-   (raw de PRIVACY.md y el demo local) en los pasos 4 y 6.
-3. **Categorías de datos del tab de privacidad** — propuesta en
-   `store/listing/en.md` § "Data use disclosures". Revisión recomendada:
-   declarar **User-generated content** (y evaluar sumar **Website content**,
-   la opción conservadora).
+2. ~~**GitHub Pages**~~ — RESUELTO (2026-11-08): activado sobre `main:/docs`.
+   Las URLs `https://pablopeu.github.io/typeclip/privacy.html` y
+   `…/demo.html` quedan vivas (los pasos 4 y 6 ya las usan).
+3. ~~**Categorías de datos del tab de privacidad**~~ — RESUELTO (2026-11-08):
+   declarar **User-generated content** Y **Website content** (la opción
+   conservadora; confirmada por el dueño). Detalle final en
+   `store/listing/en.md` § "Data use disclosures".
 
 ---
 
@@ -82,10 +78,10 @@ al final.
    `store/listing/en.md` **[PEGAR]** (está en inglés; el dashboard de permisos
    suele pedir el texto en el idioma por defecto).
 3. **Código remoto**: No.
-4. **Uso de datos** (data use disclosures): seguir la propuesta de
+4. **Uso de datos** (data use disclosures): según
    `store/listing/en.md` § "Data use disclosures" — declarar *User-generated
-   content*, venta de datos **No**, uso no relacionado **No**, creditworthiness
-   **No**. (Decisión final tuya; ver "Decisiones pendientes".)
+   content* **y** *Website content*, venta de datos **No**, uso no relacionado
+   **No**, creditworthiness **No**.
 5. **URL de política de privacidad**:
    `https://pablopeu.github.io/typeclip/privacy.html` (si activaste Pages) o
    `https://github.com/pablopeu/typeclip/blob/main/PRIVACY.md`.

@@ -110,7 +110,7 @@ any kind (verifiable with `tools/audit.py` in the repository).
 7. Source code and an automated 37-check E2E suite are in the repository
    (`tools/e2e.py`).
 
-## Data use disclosures (dashboard privacy fields) — PROPOSED, owner to confirm
+## Data use disclosures (dashboard privacy fields) — CONFIRMED by owner (2026-11-08)
 
 - **User-generated content** (the clipboard text, handled in memory and typed
   into the field): **declared**. The CWS User Data FAQ states that data
@@ -121,7 +121,7 @@ any kind (verifiable with `tools/audit.py` in the repository).
 - No authentication, financial, health, browsing-history or communications
   data is collected. The options saved in `chrome.storage.sync` are the
   user's own settings, synced by Chrome itself.
-- DECISIÓN PENDIENTE (owner): whether to also declare "Website content"
-  (the extension reads the focused field's current content, in memory, to
-  verify the result). Our reading is that it is the same user content, but
-  the conservative option is to declare both.
+- "Website content" (the extension reads the focused field's current content,
+  in memory, to verify the result): **declared**. Our reading is that it is
+  the same user content, and the owner confirmed the conservative option:
+  declare both.
